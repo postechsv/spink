@@ -65,13 +65,14 @@ module PROMELA-CONFIG
 
                   <procs> // active procs
                     <proc multiplicity="*" type="Map" color="orange" initial="">
+                      <pid> -1 </pid>
                       <k color="green"> $PGM:Spec </k>
                       <env color="LightSalmon"> .Map </env>
                     </proc>
                   </procs> 
 
                   <store color="Salmon"> .Map </store>
-                  <nextLoc> 0 </nextLoc>
+                  <nextLoc> 0 </nextLoc> <nextPid> 0 </nextPid>
 
                 </T>
 
@@ -81,8 +82,15 @@ module PROMELA
   imports PROMELA-CONFIG
   imports DOMAINS
 
+  /****************
+  BASIC DEFINITIONS
+  *****************/
+
+  syntax Effect ::= "sil" | "lck"
+
   syntax KItem ::= "null" | loc(Int) | lval(Id, Int)
-                 | #runNProcs(Id, Exprs, Int)
+                 | choice(Effect, K) // Effecful Choice
+                 //| #runNProcs(Id, Exprs, Int)
 
   syntax K ::= dupKItems(KItem, Int) [function]
   rule dupKItems(KI, 1) => KI
@@ -126,14 +134,32 @@ module PROMELA
                   <procBody> S </procBody>
                 ...</proctype>)
 
+
+  // Sequence
+  rule <k> SetItem(choice(_E, ((S1 ; S2):Stmt => S1 ~> S2) ~> K)) _:Set ...</k>
+
+
+  /*******************************************************
+        BASIC ACTIONS
+  *******************************************************/
+  //rule <k> (SetItem(choice(_E, _K)) => .Set) ...</k>
+
+
+  // Assign
+  rule <k> SetItem(choice(_E, ((X [ I:Int ] = V:Value):Stmt => .K) ~> K)) (_:Set => .Set) ...</k>
+       <env>... lval(X, I) |-> loc(L) ...</env>
+       <store>... L |-> (_ => V) ...</store>
+       //<pid> J </pid> <exc> J </exc>
+
+
   // Run
   rule <k> run X:Id ( _EL:Exprs ) => .K ...</k> <env> ENV </env>
        <proctype>... <procName> X </procName> <procParams> _DL </procParams> <procBody> S </procBody> ...</proctype>
-       //<nextPid> L => L +Int 1 </nextPid>
+       <nextPid> L => L +Int 1 </nextPid>
        (.Bag => <proc>...
-                  //<pid> L </pid>
+                  <pid> L </pid>
                   //<pName> X </pName>
-                  <k> S </k> // TODO DL = EL ~> S
+                  <k> SetItem(choice(sil, S)) SetItem(choice(sil, 42)) SetItem(choice(sil, 43)) </k> // TODO DL = EL ~> S
                   <env> ENV </env> // inherits ENV from the parent
              ...</proc>)
 
