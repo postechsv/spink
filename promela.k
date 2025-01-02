@@ -20,9 +20,17 @@ module PROMELA-SYNTAX
 
   syntax Types ::= List{Type, ","}
 
-  syntax Stmt ::= "skip" | Stmt ";" | Stmt ";" Stmt [left, prefer] | Decl | Const | Expr
-                | Vref "=" Expr | "run" Id "(" Exprs ")"  | "atomic" "{" Stmt "}" | "if" Optns "fi"
-                | Vref "!" Exprs | Vref "?" Exprs
+  syntax BasicStmt ::= Decl | Expr | "run" Id "(" Exprs ")"
+                     | Vref "=" Expr
+                     | "skip"
+
+  syntax Stmt ::= BasicStmt | Stmt ";" | Stmt ";" Stmt [left, prefer]
+                | "atomic" "{" Stmt "}" | "if" Optns "fi"
+                //| "skip" 
+
+//  syntax Stmt ::= "skip" | Stmt ";" | Stmt ";" Stmt [left, prefer] | Decl | Const | Expr
+//                | Vref "=" Expr | "run" Id "(" Exprs ")"  | "atomic" "{" Stmt "}" | "if" Optns "fi"
+//                | Vref "!" Exprs | Vref "?" Exprs
 
   syntax Expr ::= Const | Vref
                 | "-" Expr | "!" Expr
@@ -33,7 +41,7 @@ module PROMELA-SYNTAX
 
   syntax Optn ::= "::" Stmt
 
-  syntax Optns ::= List{Optn, " "}
+  syntax Optns ::= List{Optn, ""}
 
   syntax Ivar ::= Ivar "," Ivar | Vref | Vref "=" Expr | Vref "=" "[" Const "]" "of" "{" Types "}"
 
@@ -58,7 +66,7 @@ module PROMELA-CONFIG
                     <proctype multiplicity="*" type="Map" initial="">
                       <procName> #Configurator </procName>
                       <procParams> .Decls </procParams>
-                      <procBody> skip </procBody>
+                      <procBody> skip:Stmt </procBody> // skip:BasicStmt doesn't allow Stmt's in general
                       <gotoMap> .Map </gotoMap>
                     </proctype>
                   </proctypes>
@@ -86,10 +94,10 @@ module PROMELA
   BASIC DEFINITIONS
   *****************/
 
-  syntax Effect ::= "sil" | "lck"
+  syntax SEffect ::= "sil" | "lck"
 
   syntax KItem ::= "null" | loc(Int) | lval(Id, Int)
-                 | choice(Effect, K) // Effecful Choice
+                 | choice(SEffect, K) // Effecful Choice
                  //| #runNProcs(Id, Exprs, Int)
 
   syntax K ::= dupKItems(KItem, Int) [function]
@@ -134,22 +142,33 @@ module PROMELA
                   <procBody> S </procBody>
                 ...</proctype>)
 
-
+  /*******************************************************
+       Control Flow 
+  *******************************************************/
+ 
   // Sequence
-  rule <k> SetItem(choice(_E, ((S1 ; S2):Stmt => S1 ~> S2) ~> K)) _:Set ...</k>
+  rule <k> SetItem(choice(_E, ((S1 ; S2):Stmt => S1 ~> S2) ~> _K)) _:Set ...</k>
+
+  // Select
+  syntax Set ::= flatten(SEffect, Optns, K) [function]
+  rule flatten(E, (:: S) OPTL, K) => SetItem(choice(E, S ~> K)) flatten(E, OPTL, K)
+  rule flatten(_E, .Optns, _K) => .Set
+
+  rule <k> (SetItem(choice(E, if OPTL fi ~> K)) => flatten(E, OPTL, K)) _:Set ...</k>
+
 
 
   /*******************************************************
-        BASIC ACTIONS
+        BASIC ACTIONS (BasicStmt)
   *******************************************************/
-  //rule <k> (SetItem(choice(_E, _K)) => .Set) ...</k>
 
 
   // Assign
-  rule <k> SetItem(choice(_E, ((X [ I:Int ] = V:Value):Stmt => .K) ~> K)) (_:Set => .Set) ...</k>
+  //rule (X = V):Stmt => (X [ 0 ] = V):Stmt //syntactic sugar
+  rule <k> SetItem(choice(_E, ((X [ I:Int ] = V:Value):Stmt => .K) ~> _K)) (_:Set => .Set) ...</k>
        <env>... lval(X, I) |-> loc(L) ...</env>
        <store>... L |-> (_ => V) ...</store>
-       //<pid> J </pid> <exc> J </exc>
+       //<pid> J </pid> <exc> J </exc> // TODO V -> Expr
 
 
   // Run
