@@ -21,12 +21,15 @@ module PROMELA-SYNTAX
   syntax Types ::= List{Type, ","}
 
   syntax BasicStmt ::= Decl | Expr | "run" Id "(" Exprs ")"
-                     | Vref "=" Expr
+                     //| Vref "=" Expr // Assign
+                     | Id "=" Expr [macro] // Assign-alt
+                     | Id "[" Expr "]" "=" Expr // Assign-alt
                      | "skip"
 
   syntax Stmt ::= BasicStmt | Stmt ";" | Stmt ";" Stmt [left, prefer]
-                | "atomic" "{" Stmt "}" | "if" Optns "fi"
-                //| "skip" 
+                | "atomic" "{" Stmt "}"
+                | "if" Optns "fi" | "do" Optns "od"
+                | "break" 
 
 //  syntax Stmt ::= "skip" | Stmt ";" | Stmt ";" Stmt [left, prefer] | Decl | Const | Expr
 //                | Vref "=" Expr | "run" Id "(" Exprs ")"  | "atomic" "{" Stmt "}" | "if" Optns "fi"
@@ -35,6 +38,7 @@ module PROMELA-SYNTAX
   syntax Expr ::= Const | Vref
                 | "-" Expr | "!" Expr
                 | Expr "+" Expr | Expr "-" Expr | Expr "*" Expr | Expr "/" Expr 
+                | Expr "<" Expr | Expr "<=" Expr | Expr ">" Expr | Expr ">=" Expr 
                 | Expr "&&" Expr | Expr "||" Expr | Expr "==" Expr | Expr "!=" Expr 
 
   syntax Exprs ::= List{Expr, ","}
@@ -98,11 +102,22 @@ module PROMELA
 
   syntax KItem ::= "null" | loc(Int) | lval(Id, Int)
                  | choice(SEffect, K) // Effecful Choice
-                 //| #runNProcs(Id, Exprs, Int)
 
   syntax K ::= dupKItems(KItem, Int) [function]
   rule dupKItems(KI, 1) => KI
   rule dupKItems(KI, N) => KI ~> dupKItems(KI, N -Int 1) [owise]
+
+  syntax Value ::= eval(Expr, Map, Map) [function]
+  rule eval(V:Value, _, _) => V
+  rule eval(X, ENV, STR) => eval(X[0], ENV, STR) // desugar
+  rule eval(X[I], (lval(X, I) |-> loc(L)) _ENV, (loc(L) |-> V) _STR) => V
+  rule eval(E1 + E2, ENV, STR) => {eval(E1, ENV, STR)}:>Int +Int {eval(E2, ENV, STR)}:>Int
+  rule eval(E1 < E2, ENV, STR) => {eval(E1, ENV, STR)}:>Int <Int {eval(E2, ENV, STR)}:>Int
+  rule eval(E1 <= E2, ENV, STR) => {eval(E1, ENV, STR)}:>Int <=Int {eval(E2, ENV, STR)}:>Int
+  rule eval(E1 > E2, ENV, STR) => {eval(E1, ENV, STR)}:>Int >Int {eval(E2, ENV, STR)}:>Int
+  rule eval(E1 >= E2, ENV, STR) => {eval(E1, ENV, STR)}:>Int >=Int {eval(E2, ENV, STR)}:>Int
+
+
 
 
 
@@ -120,11 +135,11 @@ module PROMELA
 
 
   // Decl for value types
-  rule T:Type X:Id => T (X [ 1 ]) // sugar
+  rule T:Type X:Id => T (X [ 1 ]) // desugar
   rule _:Type _:Id [ 0 ] => .K
   rule <k> T:Type X:Id [ I:Int ] => T X [ I -Int 1 ] ...</k>
        <env> Env => Env[lval(X, I -Int 1) <- loc(L)] </env> 
-       <store>... .Map => L |-> 0 ...</store>
+       <store>... .Map => loc(L) |-> 0 ...</store>
        <nextLoc> L => L +Int 1 </nextLoc> [owise] // L may not be consecutive: int x[2] || int y[2]
 
   // Decl for Proc
@@ -142,6 +157,11 @@ module PROMELA
                   <procBody> S </procBody>
                 ...</proctype>)
 
+  // Done
+  rule <k> (SetItem ( choice ( _ , .K ) ) => .Set) ~> .K </k>
+  rule <k> (.Set:K => .K) ...</k>
+
+
   /*******************************************************
        Control Flow 
   *******************************************************/
@@ -149,27 +169,38 @@ module PROMELA
   // Sequence
   rule <k> SetItem(choice(_E, ((S1 ; S2):Stmt => S1 ~> S2) ~> _K)) _:Set ...</k>
 
-  // Select
+  // Flatten
   syntax Set ::= flatten(SEffect, Optns, K) [function]
   rule flatten(E, (:: S) OPTL, K) => SetItem(choice(E, S ~> K)) flatten(E, OPTL, K)
   rule flatten(_E, .Optns, _K) => .Set
 
+  // Select
   rule <k> (SetItem(choice(E, if OPTL fi ~> K)) => flatten(E, OPTL, K)) _:Set ...</k>
+
+  // Loop
+  rule <k> SetItem(choice(_E, (.K => if OPTL fi) ~> do OPTL od ~> _K)) _:Set ...</k>
+
+  // break
+  rule <k> SetItem(choice(_E, ((break ~> do _ od) => .K) ~> _K)) _:Set ...</k>
+  rule <k> SetItem(choice(_E, break ~> (_:Stmt => .K) ~> _K)) _:Set ...</k> [owise] // propagate
 
 
 
   /*******************************************************
         BASIC ACTIONS (BasicStmt)
   *******************************************************/
-
+  // Expr
+  rule <k> SetItem(choice(_E, (EXP:Expr => .K) ~> _K)) (_:Set => .Set) ...</k>
+       <env> ENV </env>  <store> STR </store>
+    requires eval(EXP, ENV, STR) ==K true
 
   // Assign
-  //rule (X = V):Stmt => (X [ 0 ] = V):Stmt //syntactic sugar
-  rule <k> SetItem(choice(_E, ((X [ I:Int ] = V:Value):Stmt => .K) ~> _K)) (_:Set => .Set) ...</k>
-       <env>... lval(X, I) |-> loc(L) ...</env>
-       <store>... L |-> (_ => V) ...</store>
+  rule (X:Id = V):Stmt => (X [ 0 ] = V):Stmt // sugar
+  rule <k> SetItem(choice(_E, ((X [ I:Int ] = EXP):Stmt => .K) ~> _K)) (_:Set => .Set) ...</k>
+       <env> (lval(X, I) |-> loc(L)) ENV </env>
+       <store> STR => STR[loc(L) <- eval(EXP, (lval(X, I) |-> loc(L)) ENV, STR)] </store>
        //<pid> J </pid> <exc> J </exc> // TODO V -> Expr
-
+    //requires ENV' := (lval(X, I) |-> loc(L)) ENV // this does not work :(
 
   // Run
   rule <k> run X:Id ( _EL:Exprs ) => .K ...</k> <env> ENV </env>
@@ -178,7 +209,7 @@ module PROMELA
        (.Bag => <proc>...
                   <pid> L </pid>
                   //<pName> X </pName>
-                  <k> SetItem(choice(sil, S)) SetItem(choice(sil, 42)) SetItem(choice(sil, 43)) </k> // TODO DL = EL ~> S
+                  <k> SetItem(choice(sil, S)) </k> // TODO DL = EL ~> S
                   <env> ENV </env> // inherits ENV from the parent
              ...</proc>)
 
