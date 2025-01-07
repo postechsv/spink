@@ -110,7 +110,7 @@ module PROMELA
   syntax Value ::= eval(Expr, Map, Map) [function]
   rule eval(V:Value, _, _) => V
   rule eval(X, ENV, STR) => eval(X[0], ENV, STR) // desugar
-  rule eval(X[I], (lval(X, I) |-> loc(L)) _ENV, (loc(L) |-> V) _STR) => V
+  rule eval(X[I], (lval(X, I) |-> loc(L)) _ENV, (L |-> V) _STR) => V
   rule eval(E1 + E2, ENV, STR) => {eval(E1, ENV, STR)}:>Int +Int {eval(E2, ENV, STR)}:>Int
   rule eval(E1 < E2, ENV, STR) => {eval(E1, ENV, STR)}:>Int <Int {eval(E2, ENV, STR)}:>Int
   rule eval(E1 <= E2, ENV, STR) => {eval(E1, ENV, STR)}:>Int <=Int {eval(E2, ENV, STR)}:>Int
@@ -139,7 +139,7 @@ module PROMELA
   rule _:Type _:Id [ 0 ] => .K
   rule <k> T:Type X:Id [ I:Int ] => T X [ I -Int 1 ] ...</k>
        <env> Env => Env[lval(X, I -Int 1) <- loc(L)] </env> 
-       <store>... .Map => loc(L) |-> 0 ...</store>
+       <store>... .Map => L |-> 0 ...</store>
        <nextLoc> L => L +Int 1 </nextLoc> [owise] // L may not be consecutive: int x[2] || int y[2]
 
   // Decl for Proc
@@ -198,7 +198,7 @@ module PROMELA
   rule (X:Id = V):Stmt => (X [ 0 ] = V):Stmt // sugar
   rule <k> SetItem(choice(_E, ((X [ I:Int ] = EXP):Stmt => .K) ~> _K)) (_:Set => .Set) ...</k>
        <env> (lval(X, I) |-> loc(L)) ENV </env>
-       <store> STR => STR[loc(L) <- eval(EXP, (lval(X, I) |-> loc(L)) ENV, STR)] </store>
+       <store> STR => STR[L <- eval(EXP, (lval(X, I) |-> loc(L)) ENV, STR)] </store>
        //<pid> J </pid> <exc> J </exc> // TODO V -> Expr
     //requires ENV' := (lval(X, I) |-> loc(L)) ENV // this does not work :(
 
