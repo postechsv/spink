@@ -159,7 +159,7 @@ module MINIMELA
                 ...</proctype>) */
 
   // Done
-   rule <k> (SetItem ( choice ( _ , .K ) ) => .Set) ~> .K </k>
+   rule <k> (SetItem ( choice ( _ , .K ) ) => .Set) ...</k>
    rule <k> (.Set:K => .K) ...</k>
 
 

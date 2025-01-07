@@ -25,7 +25,7 @@ module SPEC
               SetItem(choice(sil, $a == 1))
               SetItem(choice(sil, $a == 2))
               SetItem(choice(sil, $a == 3))
-            ) => .K </k>
+            ) => .K ...</k>
             <env> lval($a,0) |-> loc(0) </env>
           </proc>
         </procs>
