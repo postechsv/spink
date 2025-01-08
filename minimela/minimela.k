@@ -196,10 +196,13 @@ module MINIMELA
     requires eval(EXP, ENV, STR) ==K true
 
   // Assign
-  /* rule (X:Id = V):Stmt => (X [ 0 ] = V):Stmt */ // sugar
-  /* rule <k> SetItem(choice(_E, ((X [ I:Int ] = EXP):Stmt => .K) ~> _K)) (_:Set => .Set) ...</k>
+  rule (X:Id = V):Stmt => (X [ 0 ] = V):Stmt // sugar
+  rule <k>
+         SetItem(choice(_E, ((X [ I:Int ] = EXP):Stmt => .K) ~> _K))
+         (_:Set => .Set)
+    ...</k>
        <env> (lval(X, I) |-> loc(L)) ENV </env>
-       <store> STR => STR[loc(L) <- eval(EXP, (lval(X, I) |-> loc(L)) ENV, STR)] </store> */
+       <store> STR => STR[L <- eval(EXP, (lval(X, I) |-> loc(L)) ENV, STR)] </store>
        //<pid> J </pid> <exc> J </exc> // TODO V -> Expr
     //requires ENV' := (lval(X, I) |-> loc(L)) ENV // this does not work :(
 
