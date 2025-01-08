@@ -184,11 +184,11 @@ module MINIMELA
   rule <k> (SetItem(choice(E, if OPTL fi ~> K)) => flatten(E, OPTL, K)) _:Set ...</k>
 
   // Loop
-  /* rule <k> SetItem(choice(_E, (.K => if OPTL fi) ~> do OPTL od ~> _K)) _:Set ...</k> */
+  rule <k> SetItem(choice(_E, (.K => if OPTL fi) ~> do OPTL od ~> _K)) _:Set ...</k>
 
   // break
-  /* rule <k> SetItem(choice(_E, ((break ~> do _ od) => .K) ~> _K)) _:Set ...</k> */
-  /* rule <k> SetItem(choice(_E, break ~> (_:Stmt => .K) ~> _K)) _:Set ...</k> [owise] */ // propagate
+  rule <k> SetItem(choice(_E, ((break ~> do _ od) => .K) ~> _K)) _:Set ...</k>
+  rule <k> SetItem(choice(_E, break ~> (_:Stmt => .K) ~> _K)) _:Set ...</k> [owise] // propagate
 
 
 

@@ -19,7 +19,23 @@ module SPEC
 
   syntax Id ::= "$a" [token]
 
-  // select
+  // loop invariant
+  claim <procs>
+          <proc>
+            <k>
+              do
+                :: $a < 3 ; $a = $a + 1
+                :: $a >= 3 ; break
+              od
+             => .K ...</k>
+            <env> lval($a,0) |-> loc(0) </env>
+          </proc>
+        </procs>
+        <store> 0 |-> (0 => ?I:Int) </store>
+    ensures ?I <=Int 3
+
+
+/*  // select
   claim <procs>
           <proc>
             <k>
@@ -33,6 +49,7 @@ module SPEC
           </proc>
         </procs>
         <store> 0 |-> (3 => 42) </store>
+*/
 
 /* // assign
   claim <procs>
