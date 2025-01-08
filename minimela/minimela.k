@@ -47,7 +47,9 @@ module MINIMELA-SYNTAX
 
   syntax Optns ::= List{Optn, ""}
 
-  syntax Ivar ::= Ivar "," Ivar | Vref | Vref "=" Expr | Vref "=" "[" Const "]" "of" "{" Types "}"
+  syntax Ivar ::= Ivar "," Ivar | Vref
+                | Vref "=" Expr
+                | Vref "=" "[" Const "]" "of" "{" Types "}"
 
   syntax Vref ::= Id | Id "[" Expr "]"
 
@@ -159,24 +161,27 @@ module MINIMELA
                 ...</proctype>) */
 
   // Done
-   rule <k> (SetItem ( choice ( _ , .K ) ) => .Set) ...</k>
-   rule <k> (.Set:K => .K) ...</k>
+  rule <k> (SetItem ( choice ( _ , .K ) ) => .Set) ...</k>
+  rule <k> (.Set:K => .K) ...</k>
 
+
+  // Lift
+  rule S:Stmt => SetItem(choice(sil, S))
 
   /*******************************************************
        Control Flow 
   *******************************************************/
  
   // Sequence
-  /* rule <k> SetItem(choice(_E, ((S1 ; S2):Stmt => S1 ~> S2) ~> _K)) _:Set ...</k> */
+  rule <k> SetItem(choice(_E, ((S1 ; S2):Stmt => S1 ~> S2) ~> _K)) _:Set ...</k>
 
   // Flatten
-  /* syntax Set ::= flatten(SEffect, Optns, K) [function] */
-  /* rule flatten(E, (:: S) OPTL, K) => SetItem(choice(E, S ~> K)) flatten(E, OPTL, K) */
-  /* rule flatten(_E, .Optns, _K) => .Set */
+  syntax Set ::= flatten(SEffect, Optns, K) [function]
+  rule flatten(E, (:: S) OPTL, K) => SetItem(choice(E, S ~> K)) flatten(E, OPTL, K)
+  rule flatten(_E, .Optns, _K) => .Set
 
   // Select
-  /* rule <k> (SetItem(choice(E, if OPTL fi ~> K)) => flatten(E, OPTL, K)) _:Set ...</k> */
+  rule <k> (SetItem(choice(E, if OPTL fi ~> K)) => flatten(E, OPTL, K)) _:Set ...</k>
 
   // Loop
   /* rule <k> SetItem(choice(_E, (.K => if OPTL fi) ~> do OPTL od ~> _K)) _:Set ...</k> */

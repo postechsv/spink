@@ -19,6 +19,22 @@ module SPEC
 
   syntax Id ::= "$a" [token]
 
+  // select
+  claim <procs>
+          <proc>
+            <k>
+              if
+                :: $a > 1 ; $a = 42  // true branch
+                :: $a > 2 ; $a = 42  // true branch
+                :: $a > 3 ; $a = 100 // false branch
+              fi
+             => .K ...</k>
+            <env> lval($a,0) |-> loc(0) </env>
+          </proc>
+        </procs>
+        <store> 0 |-> (3 => 42) </store>
+
+/* // assign
   claim <procs>
           <proc>
             <k> (
@@ -30,11 +46,10 @@ module SPEC
           </proc>
         </procs>
         <store> 0 |-> (42 => 1) </store>
+*/
 
 
-
-
-/*
+/* // choice for epxr
   claim <procs>
           <proc>
             <k> (
