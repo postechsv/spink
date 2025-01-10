@@ -78,8 +78,8 @@ module MINIMELA-CONFIG
                   </proctypes>
 */
                   <procs> // active procs
-                    <proc multiplicity="*" type="Set" color="orange" initial="">
-                      //<pid> -1 </pid>
+                    <proc multiplicity="*" type="Map" color="orange" initial="">
+                      <pid> -1 </pid>
                       <k color="green"> $PGM:Spec </k>
                       <env color="LightSalmon"> .Map </env>
                     </proc>
