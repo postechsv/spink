@@ -64,8 +64,7 @@ endmodule
 module MINIMELA-CONFIG
   imports MINIMELA-SYNTAX
 
-  syntax Lock ::= Int | "#unlocked"
-  syntax KItem ::= "#acq" | "#rel"
+  syntax Lock ::= Int | "#none"
 
   configuration <T color="yellow">
 /*                  <proctypes>
@@ -86,7 +85,8 @@ module MINIMELA-CONFIG
                   </procs> 
 
                   <store color="Salmon"> .Map </store>
-//                  <nextLoc> 0 </nextLoc> <nextPid> 0 </nextPid>
+                  <lock> #none </lock>
+                  //<nextLoc> 0 </nextLoc> <nextPid> 0 </nextPid>
 
                 </T>
 
@@ -100,7 +100,6 @@ module MINIMELA
   BASIC DEFINITIONS
   *****************/
 
-  syntax SEffect ::= "sil" | "lck"
 
   syntax KItem ::= "null" | loc(Int) | lval(Id, Int)
                  | choice(SEffect, K) // Effecful Choice
@@ -190,25 +189,53 @@ module MINIMELA
   rule <k> SetItem(choice(_E, ((break ~> do _ od) => .K) ~> _K)) _:Set ...</k>
   rule <k> SetItem(choice(_E, break ~> (_:Stmt => .K) ~> _K)) _:Set ...</k> [owise] // propagate
 
+  // Locks
+  syntax SEffect ::= "sil" | "acq"
+  syntax KItem ::= "#rel"
+
+  // Atomic
+  rule <k> 
+         SetItem(choice(_ => acq, 
+           (atomic { S } => (S ~> #rel))
+           ~> _K))
+         _:Set
+    ...</k>
+
+  // Rel
+  rule <k> 
+         SetItem(choice(_, (#rel => .K) ~> _K))
+         _:Set // this may not be necessary
+    ...</k>
+       <lock> _ => #none </lock>
+
 
 
   /*******************************************************
         BASIC ACTIONS (BasicStmt)
   *******************************************************/
+
+  // getLock : result of applying EFF on LCK for PID
+  syntax Lock ::= getLock(SEffect, Lock, Int) [function]
+  rule getLock(sil, #none, _PID) => #none
+  rule getLock(_EFF, _LCK, PID) => PID [owise]
+
   // Expr
   rule <k> SetItem(choice(_, (EXP:Expr => .K) ~> _)) (_:Set => .Set) ...</k>
        <env> ENV </env>  <store> STR </store>
     requires eval(EXP, ENV, STR) ==K true
 
-  // Assign
-  rule (X:Id = V):Stmt => (X [ 0 ] = V):Stmt // sugar
-  rule <k>
-         SetItem(choice(_E, ((X [ I:Int ] = EXP):Stmt => .K) ~> _K))
-         (_:Set => .Set)
+  // Assign - TODO: eval(I)
+  rule (X:Id = V):Stmt => (X [ 0 ] = V):Stmt // desugar
+  rule <pid> PID </pid>
+       <k>
+         SetItem(choice(EFF => sil, // init side-effect
+           ((X [ I:Int ] = EXP):Stmt => .K) ~> _K))
+         (_:Set => .Set) // side-effect : choose
     ...</k>
        <env> (lval(X, I) |-> loc(L)) ENV </env>
        <store> STR => STR[L <- eval(EXP, (lval(X, I) |-> loc(L)) ENV, STR)] </store>
-       //<pid> J </pid> <exc> J </exc> // TODO V -> Expr
+       <lock> LCK => getLock(EFF, LCK, PID) </lock> // side-effect : acquire
+    requires LCK ==K #none orBool LCK ==K PID
     //requires ENV' := (lval(X, I) |-> loc(L)) ENV // this does not work :(
 
   // Run

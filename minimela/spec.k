@@ -17,9 +17,63 @@ endmodule
 module SPEC
   imports VERIFICATION
 
-  syntax Id ::= "$a" [token]
+  syntax Id ::= "$a" [token] | "$b" [token]
 
-  // loop invariant
+  claim <procs>
+          <proc>
+            <pid> 0 </pid>
+            <k>
+              atomic {
+                $a = $a + 1;
+                $a = $a + 1 
+              }
+              => .K </k>
+            <env>
+              (lval($a,0) |-> loc(0))
+              (lval($b,0) |-> loc(1))
+            </env>
+          </proc>
+          <proc>
+            <pid> 1 </pid>
+            <k>
+              ($b = $a):Stmt
+              => .K </k>
+            <env>
+              (lval($a,0) |-> loc(0))
+              (lval($b,0) |-> loc(1))
+            </env>
+          </proc>
+        </procs>
+        <store>
+          (0 |-> (0 => ?_:Int))
+          (1 |-> (0 => ?B))
+        </store>
+        <lock> #none </lock>
+    ensures (?B =/=K 1)
+
+/*  // simple concurrency
+  claim <procs>
+          <proc>
+            <pid> 0 </pid>
+            <k>
+              $a = $a + 1;
+              $a = $a + 1 
+              => .K </k>
+            <env> (lval($a,0) |-> loc(0)) (lval($b,0) |-> loc(1)) </env>
+          </proc>
+          <proc>
+            <pid> 1 </pid>
+            <k>
+              ($b = $a):Stmt
+              => .K </k>
+            <env> (lval($a,0) |-> loc(0)) (lval($b,0) |-> loc(1)) </env>
+          </proc>
+        </procs>
+        <store> (0 |-> (0 => ?_:Int)) (1 |-> (0 => ?B)) </store>
+    ensures (?B =/=K 1)
+*/
+
+/*  // loop invariant
   claim <procs>
           <proc>
             <k>
@@ -33,7 +87,7 @@ module SPEC
         </procs>
         <store> 0 |-> (0 => ?I:Int) </store>
     ensures ?I <=Int 3
-
+*/
 
 /*  // select
   claim <procs>
