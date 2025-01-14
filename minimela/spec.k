@@ -19,6 +19,29 @@ module SPEC
 
   syntax Id ::= "$a" [token] | "$b" [token]
 
+  // int array decl
+  claim <procs>
+          <proc>
+            <pid> 0 </pid>
+            <k>
+              int $a [ 3 ] = 42
+              => .K </k>
+            <env>
+              .Map => (
+                (lval($a,0) |-> loc(?I0:Int))
+                (lval($a,1) |-> loc(?I1:Int))
+                (lval($a,2) |-> loc(?I2:Int))
+              )
+            </env>
+          </proc>
+        </procs> 
+        <store>
+          .Map => ((?I0 |-> 42) (?I1 |-> 42) (?I2 |-> 42))
+        </store>
+        <lock> #none </lock>
+        <nextLoc> 0 => ?_ </nextLoc>
+ 
+/* // atomicity
   claim <procs>
           <proc>
             <pid> 0 </pid>
@@ -50,6 +73,7 @@ module SPEC
         </store>
         <lock> #none </lock>
     ensures (?B =/=K 1)
+*/
 
 /*  // simple concurrency
   claim <procs>

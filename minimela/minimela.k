@@ -86,7 +86,8 @@ module MINIMELA-CONFIG
 
                   <store color="Salmon"> .Map </store>
                   <lock> #none </lock>
-                  //<nextLoc> 0 </nextLoc> <nextPid> 0 </nextPid>
+                  <nextLoc> 0 </nextLoc>
+                 // <nextPid> 0 </nextPid>
 
                 </T>
 
@@ -193,7 +194,7 @@ module MINIMELA
   syntax SEffect ::= "sil" | "acq"
   syntax KItem ::= "#rel"
 
-  // Atomic
+  // Atomic TODO: check nested (inner atomic should not generate #rel)
   rule <k> 
          SetItem(choice(_ => acq, 
            (atomic { S } => (S ~> #rel))
@@ -238,7 +239,34 @@ module MINIMELA
     requires LCK ==K #none orBool LCK ==K PID
     //requires ENV' := (lval(X, I) |-> loc(L)) ENV // this does not work :(
 
-  // Run
+  // Decl - TODO for channels
+  rule T:Type X:Id => (T X [ 1 ]) // desugar
+  // rule T X, IVAR => T X ; T IVAR // desugar
+  // canonical form: T X [ I ] = EXP
+  rule <pid> PID </pid>
+       <k>
+         SetItem(choice(EFF => sil, // init side-effect
+           (_T:Type X [ I:Int ] = EXP => .K) ~> _K))
+         (_:Set => .Set) // side-effect : choose
+    ...</k>
+       <env> ENV (.Map => getArrayEnv(X,I,L)) </env>
+       <store> STR (.Map => L ... (L +Int I -Int 1) |-> eval(EXP, ENV, STR)) </store>
+       <lock> LCK => getLock(EFF, LCK, PID) </lock> // side-effect : acquire
+       <nextLoc> L => L +Int I </nextLoc>
+    requires LCK ==K #none orBool LCK ==K PID
+
+  // (lval(X, 0) |-> L) ... (lval(X, I - 1) |-> L + I - 1) (used in Decl)
+  syntax Map ::= getArrayEnv(Id, Int, Int) [function]
+  rule getArrayEnv(X, 1, L) => (lval(X, 0) |-> loc(L))
+  rule getArrayEnv(X, I, L) => (lval(X, I -Int 1) |-> loc(L +Int I -Int 1)) getArrayEnv(X, I -Int 1, L) [owise] //requires I >Int 1
+
+  // multiple map updates for store (used in Decl)
+  syntax Map ::= Int "..." Int "|->" K [function]
+  rule N...M |-> _ => .Map requires N >Int M
+  rule N...M |-> K => N |-> K (N +Int 1)...M |-> K requires N <=Int M
+
+
+  // Run - WARNING: env is NOT INHERITED!!
 /*
   rule <k> run X:Id ( _EL:Exprs ) => .K ...</k> <env> ENV </env>
        <proctype>... <procName> X </procName> <procParams> _DL </procParams> <procBody> S </procBody> ...</proctype>
