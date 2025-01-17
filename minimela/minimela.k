@@ -38,6 +38,7 @@ module MINIMELA-SYNTAX
 //                | Vref "!" Exprs | Vref "?" Exprs
 
   syntax Expr ::= Const | Vref
+                | "(" Expr ")" [bracket]
                 | "-" Expr | "!" Expr
                 | Expr "+" Expr | Expr "-" Expr | Expr "*" Expr | Expr "/" Expr 
                 | Expr "<" Expr | Expr "<=" Expr | Expr ">" Expr | Expr ">=" Expr 
@@ -140,7 +141,8 @@ module MINIMELA
   rule eval(nfull(_), _ENV, _STR, _BFC) => true
 
 
-  // evalList
+  // evalList - FIXME eval with brackets e.g. c ! (1 + 1) , (1 + 2) doesn't work
+  //rule eval(( E:Expr ), ENV, STR, BFC) => eval(E, ENV, STR, BFC)
   syntax List ::= evalList(Exprs, Map, Map, Map) [function]
   rule evalList((E , E' , EL), ENV, STR, BFC) => ListItem(eval(E, ENV, STR, BFC)) evalList((E', EL), ENV, STR, BFC)
   rule evalList((E , .Exprs), ENV, STR, BFC) => ListItem(eval(E, ENV, STR, BFC))
@@ -288,8 +290,9 @@ module MINIMELA
 
 
   // Chan
-  syntax KItem ::= Msg
+  //syntax KItem ::= Msg
   syntax Msg ::= msg(List)
+  syntax Queue ::= queue(Int, List) // queue size , list of Msg's
   syntax Port ::= bfPort(Int) | rvPort(Int)
   syntax Value ::= Port
   syntax Stmt ::= #send(KItem, KItem) | #recv(KItem, KItem)
@@ -311,8 +314,8 @@ module MINIMELA
        <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
 
   // 3) push msg
-//  rule <k> SetItem(choice(_E, (#send(bfPort(J), MSG:Msg) => .K) ~> _K)) _:Set ...</k>
-//       <bfChan>... J |-> MSGL (.List => ListItem(MSG)) ...</bfChan>
+  rule <k> SetItem(choice(_E, (#send(bfPort(J), MSG:Msg) => .K) ~> _K)) _:Set ...</k>
+       <bfChan>... J |-> queue(_SIZE, _LIST (.List => ListItem(MSG))) ...</bfChan>
 
 
 

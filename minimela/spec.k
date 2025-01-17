@@ -23,16 +23,14 @@ module SPEC
           <proc>
             <pid> 0 </pid>
             <k>
-              $a [  1 - 1 ] ! 1 + 1 , 2 + 1
+              $a [  1 - 1 ] ! 1 , 2
               => .K </k>
             <env>
-              lval($a,0) |-> bfPort(_:Int)
+              lval($a,0) |-> bfPort(I:Int)
             </env>
           </proc>
         </procs> 
-        <store> .Map </store> <bfChan> .Map </bfChan>
-        <lock> #none </lock>
-        <nextLoc> _ </nextLoc>
+        <bfChan> I |-> queue(3, .List) </bfChan>
 
 /*  // int array decl
   claim <procs>
