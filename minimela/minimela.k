@@ -21,9 +21,11 @@ module MINIMELA-SYNTAX
   syntax Types ::= List{Type, ","}
 
   syntax BasicStmt ::= Decl | Expr | "run" Id "(" Exprs ")"
-                     //| Vref "=" Expr // Assign
-                     | Id "=" Expr [macro] // Assign-alt
-                     | Id "[" Expr "]" "=" Expr // Assign-alt
+                     | Id "=" Expr [macro] // Assign-sugar
+                     | Id "[" Expr "]" "=" Expr // Assign
+                     | Id "[" Expr "]" "!" Exprs // Send
+                     | Id "[" Expr "]" "?" Exprs // Recv
+
                      | "skip"
 
   syntax Stmt ::= BasicStmt | Stmt ";" | Stmt ";" Stmt [left, prefer]
@@ -40,6 +42,7 @@ module MINIMELA-SYNTAX
                 | Expr "+" Expr | Expr "-" Expr | Expr "*" Expr | Expr "/" Expr 
                 | Expr "<" Expr | Expr "<=" Expr | Expr ">" Expr | Expr ">=" Expr 
                 | Expr "&&" Expr | Expr "||" Expr | Expr "==" Expr | Expr "!=" Expr 
+                | full(Vref) | empty(Vref) | nfull(Vref) | nempty(Vref)
 
   syntax Exprs ::= List{Expr, ","}
 
@@ -63,6 +66,7 @@ endmodule
 
 module MINIMELA-CONFIG
   imports MINIMELA-SYNTAX
+  imports DOMAINS
 
   syntax Lock ::= Int | "#none"
 
@@ -85,6 +89,9 @@ module MINIMELA-CONFIG
                   </procs> 
 
                   <store color="Salmon"> .Map </store>
+                  <bfChan color="Salmon"> .Map </bfChan>
+                  <rvChan color="Salmon"> .Set </rvChan>
+
                   <lock> #none </lock>
                   <nextLoc> 0 </nextLoc>
                  // <nextPid> 0 </nextPid>
@@ -95,7 +102,6 @@ endmodule
 
 module MINIMELA
   imports MINIMELA-CONFIG
-  imports DOMAINS
 
   /****************
   BASIC DEFINITIONS
@@ -105,28 +111,39 @@ module MINIMELA
   syntax KItem ::= "null" | loc(Int) | lval(Id, Int)
                  | choice(SEffect, K) // Effecful Choice
 
-  syntax K ::= dupKItems(KItem, Int) [function]
-  rule dupKItems(KI, 1) => KI
-  rule dupKItems(KI, N) => KI ~> dupKItems(KI, N -Int 1) [owise]
+//  syntax K ::= dupKItems(KItem, Int) [function]
+//  rule dupKItems(KI, 1) => KI
+//  rule dupKItems(KI, N) => KI ~> dupKItems(KI, N -Int 1) [owise]
 
-  syntax Value ::= eval(Expr, Map, Map) [function]
-  rule eval(V:Value, _, _) => V
-  rule eval(X, ENV, STR) => eval(X[0], ENV, STR) // desugar
-  rule eval(X[I], (lval(X, I) |-> loc(L)) _ENV, (L |-> V) _STR) => V
-  rule eval(E1 == E2, ENV, STR) => eval(E1, ENV, STR) ==K eval(E2, ENV, STR)
-  rule eval(E1 + E2, ENV, STR) => {eval(E1, ENV, STR)}:>Int +Int {eval(E2, ENV, STR)}:>Int
-  rule eval(E1 < E2, ENV, STR) => {eval(E1, ENV, STR)}:>Int <Int {eval(E2, ENV, STR)}:>Int
-  rule eval(E1 <= E2, ENV, STR) => {eval(E1, ENV, STR)}:>Int <=Int {eval(E2, ENV, STR)}:>Int
-  rule eval(E1 > E2, ENV, STR) => {eval(E1, ENV, STR)}:>Int >Int {eval(E2, ENV, STR)}:>Int
-  rule eval(E1 >= E2, ENV, STR) => {eval(E1, ENV, STR)}:>Int >=Int {eval(E2, ENV, STR)}:>Int
+  syntax Value ::= eval(Expr, Map, Map, Map) [function]
+
+  rule eval(V:Value, _, _, _) => V
+
+  rule eval(X:Id, ENV, STR, BFC) => eval(X[0], ENV, STR, BFC) // desugar
+  rule eval(X[IEXP], ENV, STR, BFC) => eval(X [ eval(IEXP, ENV, STR, BFC) ], ENV, STR, BFC) [owise] // i.e. IEXP not Int
+
+  // Look-Up
+  rule eval(X[I:Int], (lval(X, I) |-> loc(L)) _ENV, (L |-> V) _STR, _BFC) => V // loc
+  rule eval(X[I:Int], (lval(X, I) |-> bfPort(J)) _ENV, _STR, _BFC) => bfPort(J) // buf chan
+  rule eval(X[I:Int], (lval(X, I) |-> rvPort(J)) _ENV, _STR, _BFC) => rvPort(J) // rv chan
+
+  // Arith Expr
+  rule eval(E1 == E2, ENV, STR, BFC) => eval(E1, ENV, STR, BFC) ==K eval(E2, ENV, STR, BFC)
+  rule eval(E1 + E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int +Int {eval(E2, ENV, STR, BFC)}:>Int
+  rule eval(E1 - E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int -Int {eval(E2, ENV, STR, BFC)}:>Int
+  rule eval(E1 < E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int <Int {eval(E2, ENV, STR, BFC)}:>Int
+  rule eval(E1 <= E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int <=Int {eval(E2, ENV, STR, BFC)}:>Int
+  rule eval(E1 > E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int >Int {eval(E2, ENV, STR, BFC)}:>Int
+  rule eval(E1 >= E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int >=Int {eval(E2, ENV, STR, BFC)}:>Int
+
+  // Chan Poll - TODO
+  rule eval(nfull(_), _ENV, _STR, _BFC) => true
 
 
-
-
-
-
-
-
+  // evalList
+  syntax List ::= evalList(Exprs, Map, Map, Map) [function]
+  rule evalList((E , E' , EL), ENV, STR, BFC) => ListItem(eval(E, ENV, STR, BFC)) evalList((E', EL), ENV, STR, BFC)
+  rule evalList((E , .Exprs), ENV, STR, BFC) => ListItem(eval(E, ENV, STR, BFC))
 
 
 
@@ -222,8 +239,8 @@ module MINIMELA
 
   // Expr
   rule <k> SetItem(choice(_, (EXP:Expr => .K) ~> _)) (_:Set => .Set) ...</k>
-       <env> ENV </env>  <store> STR </store>
-    requires eval(EXP, ENV, STR) ==K true
+       <env> ENV </env>  <store> STR </store>  <bfChan> BFC </bfChan>
+    requires eval(EXP, ENV, STR, BFC) ==K true
 
   // Assign - TODO: eval(I)
   rule (X:Id = V):Stmt => (X [ 0 ] = V):Stmt // desugar
@@ -234,7 +251,8 @@ module MINIMELA
          (_:Set => .Set) // side-effect : choose
     ...</k>
        <env> (lval(X, I) |-> loc(L)) ENV </env>
-       <store> STR => STR[L <- eval(EXP, (lval(X, I) |-> loc(L)) ENV, STR)] </store>
+       <store> STR => STR[L <- eval(EXP, (lval(X, I) |-> loc(L)) ENV, STR, BFC)] </store>
+       <bfChan> BFC </bfChan>
        <lock> LCK => getLock(EFF, LCK, PID) </lock> // side-effect : acquire
     requires LCK ==K #none orBool LCK ==K PID
     //requires ENV' := (lval(X, I) |-> loc(L)) ENV // this does not work :(
@@ -250,7 +268,8 @@ module MINIMELA
          (_:Set => .Set) // side-effect : choose
     ...</k>
        <env> ENV (.Map => getArrayEnv(X,I,L)) </env>
-       <store> STR (.Map => L ... (L +Int I -Int 1) |-> eval(EXP, ENV, STR)) </store>
+       <store> STR (.Map => L ... (L +Int I -Int 1) |-> eval(EXP, ENV, STR, BFC)) </store>
+       <bfChan> BFC </bfChan>
        <lock> LCK => getLock(EFF, LCK, PID) </lock> // side-effect : acquire
        <nextLoc> L => L +Int I </nextLoc>
     requires LCK ==K #none orBool LCK ==K PID
@@ -264,6 +283,56 @@ module MINIMELA
   syntax Map ::= Int "..." Int "|->" K [function]
   rule N...M |-> _ => .Map requires N >Int M
   rule N...M |-> K => N |-> K (N +Int 1)...M |-> K requires N <=Int M
+
+
+
+
+  // Chan
+  syntax KItem ::= Msg
+  syntax Msg ::= msg(List)
+  syntax Port ::= bfPort(Int) | rvPort(Int)
+  syntax Value ::= Port
+  syntax Stmt ::= #send(KItem, KItem) | #recv(KItem, KItem)
+
+  // can't tell yet if its rv or async channel (may change if C [ IEXP ] contains global variables)
+  rule <k> SetItem(choice(_E, (C [ IEXP ] ! EXPL => atomic { #send(C [ IEXP ], EXPL) }) ~> _K)) _:Set ...</k>
+
+  // Buffered Send
+  // 1) check buffered sendable - TODO: atomic effect
+  rule <k>
+         SetItem(choice(_E, (#send(C [ IEXP ] => eval(C [ IEXP ], ENV, STR, BFC), _)) ~> _K))
+         (_:Set => .Set)
+    ...</k>
+       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
+    requires bfPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) andBool eval(nfull(C [ IEXP ]), ENV, STR, BFC) ==K true
+
+  // 2) make msg
+  rule <k> SetItem(choice(_E, (#send(bfPort(_), EXPL:Exprs => msg(evalList(EXPL, ENV, STR, BFC)))) ~> _K)) _:Set ...</k>
+       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
+
+  // 3) push msg
+//  rule <k> SetItem(choice(_E, (#send(bfPort(J), MSG:Msg) => .K) ~> _K)) _:Set ...</k>
+//       <bfChan>... J |-> MSGL (.List => ListItem(MSG)) ...</bfChan>
+
+
+
+
+/* TODO - delete this soon
+  rule <k> SetItem(choice(_E, (#send(C [ I:Int ] => port(J), EXPL)) ~> _K)) _:Set ...</k>
+       <env>... lval(C, I) |-> port(J) ...</env>
+
+  rule <k> SetItem(choice(_E, (#send(port(J), EXPL:Exprs => msg(evalList(EXPL, ENV, STR, CHAN)))) ~> _K)) _:Set ...</k>
+       <env> ENV </env> <store> STORE </store> <chan> _CHAN </chan>
+
+  rule <k>
+         SetItem(choice(EFF => sil, // init side-effect
+           (#send(port(J), MSG:Msg) => .K) ~> _K))
+         (_:Set => .Set) // side-effect : choose
+    ...</k>
+       <chan>... J |-> MSGL (.List => ListItem(MSG)) ...</chan>
+*/
+
+
 
 
   // Run - WARNING: env is NOT INHERITED!!

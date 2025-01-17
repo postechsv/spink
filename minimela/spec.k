@@ -19,7 +19,22 @@ module SPEC
 
   syntax Id ::= "$a" [token] | "$b" [token]
 
-  // int array decl
+  claim <procs>
+          <proc>
+            <pid> 0 </pid>
+            <k>
+              $a [  1 - 1 ] ! 1 + 1 , 2 + 1
+              => .K </k>
+            <env>
+              lval($a,0) |-> bfPort(_:Int)
+            </env>
+          </proc>
+        </procs> 
+        <store> .Map </store> <bfChan> .Map </bfChan>
+        <lock> #none </lock>
+        <nextLoc> _ </nextLoc>
+
+/*  // int array decl
   claim <procs>
           <proc>
             <pid> 0 </pid>
@@ -40,6 +55,7 @@ module SPEC
         </store>
         <lock> #none </lock>
         <nextLoc> 0 => ?_ </nextLoc>
+*/
  
 /* // atomicity
   claim <procs>
