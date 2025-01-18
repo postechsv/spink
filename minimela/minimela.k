@@ -340,7 +340,7 @@ module MINIMELA
   rule matchMsg((_:Vref, .Exprs), ListItem(_)) => true
   rule matchMsg(_, _) => false [owise]
 
- // 1) check buffered recvable - TODO: atomic effect
+  // 1) check buffered recvable - TODO: atomic effect
   rule <k>
          SetItem(choice(_E, (#recv(C [ IEXP ] => eval(C [ IEXP ], ENV, STR, BFC), EXPL)) ~> _K))
          (_:Set => .Set)
@@ -370,6 +370,19 @@ module MINIMELA
     //               //
    //  Rendez-Vous  //
   //               //
+  // 1) check rendezvous - TODO: atomic effect (seems recv takes the lock)
+  rule
+    <proc>...
+      <k> SetItem(choice(_E,  ((#send(C [ IEXP ], SEL) => .K) ~> _K))) (_:Set => .Set) ...</k>
+      <env> ENV </env>
+ ...</proc>
+    <proc>...
+      <k> SetItem(choice(_E', ((#recv(C' [ IEXP' ], REL) => #assignMsg(REL, evalList(SEL, ENV, STR, BFC))) ~> _K'))) (_:Set => .Set) ...</k>
+      <env> ENV' </env>
+ ...</proc>
+    <store> STR </store> <bfChan> BFC </bfChan>
+    requires rvPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) // check port type
+             andBool eval(C [ IEXP ], ENV, STR, BFC) ==K eval(C' [ IEXP' ], ENV', STR, BFC) // check port id
 
 
 

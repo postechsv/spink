@@ -23,16 +23,26 @@ module SPEC
           <proc>
             <pid> 0 </pid>
             <k>
-              $a [ 0 ] ? $b , $b 
+              $a [ 0 ] ! 1 , 2 
               => .K </k>
             <env>
-              (lval($a,0) |-> bfPort(I:Int))
+              (lval($a,0) |-> rvPort(I:Int))
+              (lval($b,0) |-> loc(J:Int))
+            </env>
+          </proc>
+          <proc>
+            <pid> 1 </pid>
+            <k>
+              $a [ 0 ] ? 1 , $b
+              => .K </k>
+            <env>
+              (lval($a,0) |-> rvPort(I:Int))
               (lval($b,0) |-> loc(J:Int))
             </env>
           </proc>
         </procs>
-        <store> J |-> _ </store>
-        <bfChan> I |-> queue(3, ListItem(msg(ListItem(1) ListItem(2)))) </bfChan>
+        <store> J |-> 0 </store>
+        <bfChan> .Map </bfChan>
         <lock> #none </lock>
 
 /*  // int array decl
