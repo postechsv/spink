@@ -23,14 +23,14 @@ module SPEC
           <proc>
             <pid> 0 </pid>
             <k>
-              $a [  1 - 1 ] ! 1 , 2
+              $a [ 0 ] ? 1 , 2
               => .K </k>
             <env>
               lval($a,0) |-> bfPort(I:Int)
             </env>
           </proc>
         </procs> 
-        <bfChan> I |-> queue(3, .List) </bfChan>
+        <bfChan> I |-> queue(3, ListItem(msg(ListItem(1) ListItem(2)))) </bfChan>
 
 /*  // int array decl
   claim <procs>

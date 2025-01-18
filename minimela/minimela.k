@@ -44,6 +44,8 @@ module MINIMELA-SYNTAX
                 | Expr "<" Expr | Expr "<=" Expr | Expr ">" Expr | Expr ">=" Expr 
                 | Expr "&&" Expr | Expr "||" Expr | Expr "==" Expr | Expr "!=" Expr 
                 | full(Vref) | empty(Vref) | nfull(Vref) | nempty(Vref)
+                | Id "[" Expr "]" "??" Exprs // Recv Poll (only for buf chans)
+
 
   syntax Exprs ::= List{Expr, ","}
 
@@ -139,6 +141,11 @@ module MINIMELA
 
   // Chan Poll - TODO
   rule eval(nfull(_), _ENV, _STR, _BFC) => true
+
+  // Poll
+  rule eval(C [ I:Int ] ?? EXPL, (lval(C, I) |-> bfPort(J)) _ENV, _STR, (J |-> queue(_, ListItem(msg(VL)) _Q)) _BFC)
+    => true requires matchMsg(EXPL, VL)
+  rule eval(_ [ _:Int ] ?? _, _ENV, _STR, _BFC) => false [owise]
 
 
   // evalList - FIXME eval with brackets e.g. c ! (1 + 1) , (1 + 2) doesn't work
@@ -290,8 +297,7 @@ module MINIMELA
 
 
   // Chan
-  //syntax KItem ::= Msg
-  syntax Msg ::= msg(List)
+  syntax Msg ::= msg(List) | "noMsg"
   syntax Queue ::= queue(Int, List) // queue size , list of Msg's
   syntax Port ::= bfPort(Int) | rvPort(Int)
   syntax Value ::= Port
@@ -299,15 +305,21 @@ module MINIMELA
 
   // can't tell yet if its rv or async channel (may change if C [ IEXP ] contains global variables)
   rule <k> SetItem(choice(_E, (C [ IEXP ] ! EXPL => atomic { #send(C [ IEXP ], EXPL) }) ~> _K)) _:Set ...</k>
+  rule <k> SetItem(choice(_E, (C [ IEXP ] ? EXPL => atomic { #recv(C [ IEXP ], EXPL) }) ~> _K)) _:Set ...</k>
 
-  // Buffered Send
+
+    //               //
+   // Buffered Send //
+  //               //
+
   // 1) check buffered sendable - TODO: atomic effect
   rule <k>
          SetItem(choice(_E, (#send(C [ IEXP ] => eval(C [ IEXP ], ENV, STR, BFC), _)) ~> _K))
          (_:Set => .Set)
     ...</k>
        <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
-    requires bfPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) andBool eval(nfull(C [ IEXP ]), ENV, STR, BFC) ==K true
+    requires bfPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC)
+             andBool eval(nfull(C [ IEXP ]), ENV, STR, BFC) ==K true
 
   // 2) make msg
   rule <k> SetItem(choice(_E, (#send(bfPort(_), EXPL:Exprs => msg(evalList(EXPL, ENV, STR, BFC)))) ~> _K)) _:Set ...</k>
@@ -317,23 +329,39 @@ module MINIMELA
   rule <k> SetItem(choice(_E, (#send(bfPort(J), MSG:Msg) => .K) ~> _K)) _:Set ...</k>
        <bfChan>... J |-> queue(_SIZE, _LIST (.List => ListItem(MSG))) ...</bfChan>
 
+    //               //
+   // Buffered Recv //
+  //               //
 
+  syntax Msg ::= head(Queue) [function]
+  rule head(queue(_, .List)) => noMsg
+  rule head(queue(_, ListItem(MSG) _LIST)) => MSG
 
+//  syntax Int ::= getPortId(Port) [function] // e.g. unwrap(bfPort(I)) => I
+//  rule getPortId(bfPort(I)) => I
+//  rule getPortId(rvPort(I)) => I
 
-/* TODO - delete this soon
-  rule <k> SetItem(choice(_E, (#send(C [ I:Int ] => port(J), EXPL)) ~> _K)) _:Set ...</k>
-       <env>... lval(C, I) |-> port(J) ...</env>
+  syntax Bool ::= matchMsg(Exprs, List) [function] // pattern match EXPL := VL where MSG = msg(VL) to check recv constraints
+  rule matchMsg((E , E' , EL), ListItem(V) VL) => matchMsg(E, ListItem(V)) andBool matchMsg((E' , EL), VL)
+  rule matchMsg((V:Value, .Exprs), ListItem(V)) => true
+  rule matchMsg((_:Vref, .Exprs), ListItem(_)) => true
+  rule matchMsg(_, _) => false [owise]
 
-  rule <k> SetItem(choice(_E, (#send(port(J), EXPL:Exprs => msg(evalList(EXPL, ENV, STR, CHAN)))) ~> _K)) _:Set ...</k>
-       <env> ENV </env> <store> STORE </store> <chan> _CHAN </chan>
-
+  // 1) check buffered recvable - TODO: atomic effect
   rule <k>
-         SetItem(choice(EFF => sil, // init side-effect
-           (#send(port(J), MSG:Msg) => .K) ~> _K))
-         (_:Set => .Set) // side-effect : choose
+         SetItem(choice(_E, (#recv(C [ IEXP ] => eval(C [ IEXP ], ENV, STR, BFC), EXPL)) ~> _K))
+         (_:Set => .Set)
     ...</k>
-       <chan>... J |-> MSGL (.List => ListItem(MSG)) ...</chan>
-*/
+       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
+    requires bfPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) // check port type
+             andBool eval(C [ IEXP ] ?? EXPL, ENV, STR, BFC) ==K true // buf recv poll
+
+
+    //               //
+   //  Rendez-Vous  //
+  //               //
+
+
 
 
 
