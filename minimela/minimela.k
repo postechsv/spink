@@ -318,8 +318,8 @@ module MINIMELA
          (_:Set => .Set)
     ...</k>
        <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
-    requires bfPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC)
-             andBool eval(nfull(C [ IEXP ]), ENV, STR, BFC) ==K true
+    requires bfPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) // check port type
+             andBool eval(nfull(C [ IEXP ]), ENV, STR, BFC) ==K true // buf send poll
 
   // 2) make msg
   rule <k> SetItem(choice(_E, (#send(bfPort(_), EXPL:Exprs => msg(evalList(EXPL, ENV, STR, BFC)))) ~> _K)) _:Set ...</k>
@@ -333,21 +333,14 @@ module MINIMELA
    // Buffered Recv //
   //               //
 
-  syntax Msg ::= head(Queue) [function]
-  rule head(queue(_, .List)) => noMsg
-  rule head(queue(_, ListItem(MSG) _LIST)) => MSG
-
-//  syntax Int ::= getPortId(Port) [function] // e.g. unwrap(bfPort(I)) => I
-//  rule getPortId(bfPort(I)) => I
-//  rule getPortId(rvPort(I)) => I
-
+  // constraint checking function for recv
   syntax Bool ::= matchMsg(Exprs, List) [function] // pattern match EXPL := VL where MSG = msg(VL) to check recv constraints
   rule matchMsg((E , E' , EL), ListItem(V) VL) => matchMsg(E, ListItem(V)) andBool matchMsg((E' , EL), VL)
   rule matchMsg((V:Value, .Exprs), ListItem(V)) => true
   rule matchMsg((_:Vref, .Exprs), ListItem(_)) => true
   rule matchMsg(_, _) => false [owise]
 
-  // 1) check buffered recvable - TODO: atomic effect
+ // 1) check buffered recvable - TODO: atomic effect
   rule <k>
          SetItem(choice(_E, (#recv(C [ IEXP ] => eval(C [ IEXP ], ENV, STR, BFC), EXPL)) ~> _K))
          (_:Set => .Set)
@@ -355,6 +348,23 @@ module MINIMELA
        <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
     requires bfPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) // check port type
              andBool eval(C [ IEXP ] ?? EXPL, ENV, STR, BFC) ==K true // buf recv poll
+
+  // 2) pop msg
+   rule <k> SetItem(choice(_E, (#recv(bfPort(J), EXPL) => #assignMsg(EXPL, VL)) ~> _K)) _:Set ...</k>
+       <bfChan>... J |-> queue(_SIZE, ListItem(msg(VL)) _LIST) ...</bfChan>
+
+  // 3) assign msg
+  syntax Stmt ::= #assignMsg(Exprs, List)
+  rule <k> SetItem(choice(_E, ( 
+                                #assignMsg((E , E' , EL), ListItem(V) VL)
+                                =>
+                                (#assignMsg(E , ListItem(V)) ~> #assignMsg((E' , EL), VL))
+                              ) ~> _K)) _:Set ...</k>
+
+  rule <k> SetItem(choice(_E, ( #assignMsg((V:Value , .Exprs), ListItem(V)) => .K ) ~> _K)) _:Set ...</k>
+  rule <k> SetItem(choice(_E, ( #assignMsg((X:Id , .Exprs), ListItem(V)) => (X = V):Stmt ) ~> _K)) _:Set ...</k>
+  rule <k> SetItem(choice(_E, ( #assignMsg((X [ E ] , .Exprs), ListItem(V)) => (X [ E ] = V):Stmt ) ~> _K)) _:Set ...</k>
+
 
 
     //               //
