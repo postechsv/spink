@@ -23,12 +23,11 @@ module SPEC
           <proc>
             <pid> 0 </pid>
             <k>
-              ($a [ 1 - 1 ] = 0 + 1):Stmt
+              ($a [ 1 - 1 ] = $c [ 0 ]):Stmt
               => .K </k>
-            <env> lval($a,0) |-> loc(0) </env>
+            <env> (lval($a,0) |-> rvPort(-1)) (lval($c,0) |-> rvPort(0)) </env>
           </proc>
         </procs>
-        <store> 0 |-> 0 </store>
         <lock> #none </lock>
 
 /*  // bf recv

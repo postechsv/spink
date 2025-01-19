@@ -269,7 +269,7 @@ module MINIMELA
 
   rule <k> SetItem(choice(_E, ((X [ IE ] = E):Stmt => atomic { #assign(X [ IE ], E) }) ~> _K)) _:Set ...</k>
 
-  // Prologue :
+  // 1) Prologue : identification
   rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
        <k>
          SetItem(choice(_EFF => sil, // init acq
@@ -279,10 +279,15 @@ module MINIMELA
        <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>  
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
 
-  // 2) store assignment
+  // 2-a) non-channel assignment
   rule <k> SetItem(choice(_E, (#assign(lval(X, I), V:Value) => .K) ~> _K)) _:Set ...</k>
        <env>... lval(X, I) |-> loc(L) ...</env>
        <store>... L |-> (_ => V) ...</store>
+
+  // 2-b) channel assignment
+  rule <k> SetItem(choice(_E, (#assign(lval(X, I), V:Port) => .K) ~> _K)) _:Set ...</k>
+       <env>... lval(X, I) |-> (_:Port => V) ...</env>
+
 
   /* old version of assign - remove this soon
   rule <pid> PID </pid>
