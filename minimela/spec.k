@@ -19,12 +19,26 @@ module SPEC
 
   syntax Id ::= "$a" [token] | "$b" [token] | "$c" [token]
 
-  // bf recv
+  claim <procs>
+          <proc>
+            <pid> 0 </pid>
+            <k>
+              ($a [ 1 - 1 ] = 0 + 1):Stmt
+              => .K </k>
+            <env> lval($a,0) |-> loc(0) </env>
+          </proc>
+        </procs>
+        <store> 0 |-> 0 </store>
+        <lock> #none </lock>
+
+/*  // bf recv
   claim <procs>
           <proc>
             <pid> 1 </pid>
             <k>
-                $c [ 0 ] ? $a ; $b = $b + 1
+                do
+                  :: $c [ 0 ] ? $a ; $b = $b + 1
+                od
               => .K </k>
             <env>
               (lval($a,0) |-> loc(0))
@@ -34,8 +48,10 @@ module SPEC
           </proc>
         </procs>
         <store> (0 |-> 0) (1 |-> 0) </store>
-        <bfChan> 0 |-> queue(10, ListItem(msg(ListItem(42)))) </bfChan>
+        <bfChan> 0 |-> queue(_, _MSGL) </bfChan>
         <lock> #none </lock>
+    //requires size(MSGL) ==K 
+*/
 
 /* // rv channel
   claim <procs>

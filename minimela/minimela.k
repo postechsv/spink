@@ -263,6 +263,28 @@ module MINIMELA
 
   // Assign - TODO: eval(I)
   rule (X:Id = V):Stmt => (X [ 0 ] = V):Stmt // desugar
+
+  // assign - new version
+  syntax Stmt ::= #assign(KItem, KItem)
+
+  rule <k> SetItem(choice(_E, ((X [ IE ] = E):Stmt => atomic { #assign(X [ IE ], E) }) ~> _K)) _:Set ...</k>
+
+  // Prologue :
+  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
+       <k>
+         SetItem(choice(_EFF => sil, // init acq
+           #assign(X [ IE ] => lval(X, {eval(IE, ENV, STR, BFC)}:>Int), EXP => eval(EXP, ENV, STR, BFC)) ~> _K))
+         (_:Set => .Set) // choose
+    ...</k>
+       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>  
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+
+  // 2) store assignment
+  rule <k> SetItem(choice(_E, (#assign(lval(X, I), V:Value) => .K) ~> _K)) _:Set ...</k>
+       <env>... lval(X, I) |-> loc(L) ...</env>
+       <store>... L |-> (_ => V) ...</store>
+
+  /* old version of assign - remove this soon
   rule <pid> PID </pid>
        <k>
          SetItem(choice(EFF => sil, // init side-effect
@@ -273,8 +295,10 @@ module MINIMELA
        <store> STR => STR[L <- eval(EXP, (lval(X, I) |-> loc(L)) ENV, STR, BFC)] </store>
        <bfChan> BFC </bfChan>
        <lock> LCK => getLock(EFF, LCK, PID) </lock> // side-effect : acquire
-    requires LCK ==K #none orBool LCK ==K PID
+    requires LCK ==K #none orBool LCK ==K PID */
     //requires ENV' := (lval(X, I) |-> loc(L)) ENV // this does not work :(
+
+  
 
   // Decl - TODO for channels
   rule T:Type X:Id => (T X [ 1 ]) // desugar
