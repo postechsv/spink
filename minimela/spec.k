@@ -17,8 +17,27 @@ endmodule
 module SPEC
   imports VERIFICATION
 
-  syntax Id ::= "$a" [token] | "$b" [token]
+  syntax Id ::= "$a" [token] | "$b" [token] | "$c" [token]
 
+  // bf recv
+  claim <procs>
+          <proc>
+            <pid> 1 </pid>
+            <k>
+                $c [ 0 ] ? $a ; $b = $b + 1
+              => .K </k>
+            <env>
+              (lval($a,0) |-> loc(0))
+              (lval($b,0) |-> loc(1))
+              (lval($c,0) |-> bfPort(0))
+            </env>
+          </proc>
+        </procs>
+        <store> (0 |-> 0) (1 |-> 0) </store>
+        <bfChan> 0 |-> queue(10, ListItem(msg(ListItem(42)))) </bfChan>
+        <lock> #none </lock>
+
+/* // rv channel
   claim <procs>
           <proc>
             <pid> 0 </pid>
@@ -44,6 +63,7 @@ module SPEC
         <store> J |-> 0 </store>
         <bfChan> .Map </bfChan>
         <lock> #none </lock>
+*/
 
 /*  // int array decl
   claim <procs>
