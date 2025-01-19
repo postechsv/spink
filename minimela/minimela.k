@@ -93,7 +93,6 @@ module MINIMELA-CONFIG
 
                   <store color="Salmon"> .Map </store>
                   <bfChan color="Salmon"> .Map </bfChan>
-                  <rvChan color="Salmon"> .Set </rvChan>
 
                   <lock> #none </lock>
                   <nextLoc> 0 </nextLoc>
@@ -220,13 +219,24 @@ module MINIMELA
   syntax SEffect ::= "sil" | "acq"
   syntax KItem ::= "#rel"
 
-  // Atomic TODO: check nested (inner atomic should not generate #rel)
+  // Atomic
+  // outermost atomic
   rule <k> 
          SetItem(choice(_ => acq, 
            (atomic { S } => (S ~> #rel))
            ~> _K))
          _:Set
     ...</k>
+
+  // inner atomic - ignore
+  rule <pid> PID:Int </pid>
+       <k> 
+         SetItem(choice(_, 
+           (atomic { S } => S)
+           ~> _K))
+         _:Set
+    ...</k>
+       <lock> PID </lock>
 
   // Rel
   rule <k> 
@@ -312,13 +322,16 @@ module MINIMELA
    // Buffered Send //
   //               //
 
-  // 1) check buffered sendable - TODO: atomic effect
-  rule <k>
-         SetItem(choice(_E, (#send(C [ IEXP ] => eval(C [ IEXP ], ENV, STR, BFC), _)) ~> _K))
-         (_:Set => .Set)
+  // 1) Prologue: check buffered sendable
+  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
+       <k>
+         SetItem(choice(_E => sil, // init acq
+           (#send(C [ IEXP ] => eval(C [ IEXP ], ENV, STR, BFC), _)) ~> _K))
+         (_:Set => .Set) // choose
     ...</k>
        <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
-    requires bfPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) // check port type
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+             andBool bfPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) // check port type
              andBool eval(nfull(C [ IEXP ]), ENV, STR, BFC) ==K true // buf send poll
 
   // 2) make msg
@@ -340,18 +353,21 @@ module MINIMELA
   rule matchMsg((_:Vref, .Exprs), ListItem(_)) => true
   rule matchMsg(_, _) => false [owise]
 
-  // 1) check buffered recvable - TODO: atomic effect
-  rule <k>
-         SetItem(choice(_E, (#recv(C [ IEXP ] => eval(C [ IEXP ], ENV, STR, BFC), EXPL)) ~> _K))
-         (_:Set => .Set)
+  // 1) Prologue: check buffered recvable
+  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
+       <k>
+         SetItem(choice(_E => sil, // init acq
+           (#recv(C [ IEXP ] => eval(C [ IEXP ], ENV, STR, BFC), EXPL)) ~> _K))
+         (_:Set => .Set) // choose
     ...</k>
        <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
-    requires bfPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) // check port type
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+             andBool bfPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) // check port type
              andBool eval(C [ IEXP ] ?? EXPL, ENV, STR, BFC) ==K true // buf recv poll
 
   // 2) pop msg
    rule <k> SetItem(choice(_E, (#recv(bfPort(J), EXPL) => #assignMsg(EXPL, VL)) ~> _K)) _:Set ...</k>
-       <bfChan>... J |-> queue(_SIZE, ListItem(msg(VL)) _LIST) ...</bfChan>
+       <bfChan>... J |-> queue(_SIZE, (ListItem(msg(VL)) => .List) _LIST) ...</bfChan>
 
   // 3) assign msg
   syntax Stmt ::= #assignMsg(Exprs, List)
