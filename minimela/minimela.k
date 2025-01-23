@@ -131,8 +131,12 @@ module MINIMELA
 
   // Arith Expr
   rule eval(E1 == E2, ENV, STR, BFC) => eval(E1, ENV, STR, BFC) ==K eval(E2, ENV, STR, BFC)
+
   rule eval(E1 + E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int +Int {eval(E2, ENV, STR, BFC)}:>Int
   rule eval(E1 - E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int -Int {eval(E2, ENV, STR, BFC)}:>Int
+  rule eval(E1 * E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int *Int {eval(E2, ENV, STR, BFC)}:>Int
+  rule eval(E1 / E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int /Int {eval(E2, ENV, STR, BFC)}:>Int
+ 
   rule eval(E1 < E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int <Int {eval(E2, ENV, STR, BFC)}:>Int
   rule eval(E1 <= E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int <=Int {eval(E2, ENV, STR, BFC)}:>Int
   rule eval(E1 > E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int >Int {eval(E2, ENV, STR, BFC)}:>Int
@@ -184,6 +188,9 @@ module MINIMELA
                   <procParams> DL </procParams>
                   <procBody> S </procBody>
                 ...</proctype>) */
+
+  // Stop for debug
+  syntax Stmt ::= "stop"
 
   // Done
   rule <k> (SetItem ( choice ( _ , .K ) ) => .Set) ...</k>
@@ -287,21 +294,6 @@ module MINIMELA
   // 2-b) channel assignment
   rule <k> SetItem(choice(_E, (#assign(lval(X, I), V:Port) => .K) ~> _K)) _:Set ...</k>
        <env>... lval(X, I) |-> (_:Port => V) ...</env>
-
-
-  /* old version of assign - remove this soon
-  rule <pid> PID </pid>
-       <k>
-         SetItem(choice(EFF => sil, // init side-effect
-           ((X [ I:Int ] = EXP):Stmt => .K) ~> _K))
-         (_:Set => .Set) // side-effect : choose
-    ...</k>
-       <env> (lval(X, I) |-> loc(L)) ENV </env>
-       <store> STR => STR[L <- eval(EXP, (lval(X, I) |-> loc(L)) ENV, STR, BFC)] </store>
-       <bfChan> BFC </bfChan>
-       <lock> LCK => getLock(EFF, LCK, PID) </lock> // side-effect : acquire
-    requires LCK ==K #none orBool LCK ==K PID */
-    //requires ENV' := (lval(X, I) |-> loc(L)) ENV // this does not work :(
 
   
 

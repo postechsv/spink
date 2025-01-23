@@ -18,7 +18,115 @@ module SPEC
   imports VERIFICATION
 
   syntax Id ::= "$a" [token] | "$b" [token] | "$c" [token]
+  syntax Id ::= "$n" [token] | "$s" [token]
 
+
+  claim <procs>
+          <proc>
+            <pid> 1 </pid>
+            <k>
+                do
+                  :: 0 < $n ; $s = $s + $n ; $n = $n - 1
+                  :: 0 >= $n ; break
+                od
+              => .K
+            </k>
+            <env>
+              (lval($s,0) |-> loc(0))
+              (lval($n,0) |-> loc(1))
+            </env>
+          </proc>
+        </procs>
+        <store>
+          (0 |-> (S:Int => S +Int ((N +Int 1) *Int N /Int 2)))
+          (1 |-> (N:Int => 0))
+        </store>
+        <lock> #none </lock>
+    requires N >=Int 0
+
+
+/*
+  claim [invariant] :
+        <procs>
+          <proc>
+            <pid> 1 </pid>
+            <k>
+                do
+                  :: $c [ 0 ] ? $a ; $b = $b + 1
+                od
+            //  => .K
+         ...</k>
+            <env>
+              (lval($a,0) |-> loc(0))
+              (lval($b,0) |-> loc(1))
+              (lval($c,0) |-> bfPort(0))
+            </env>
+          </proc>
+        </procs>
+        <store> (0 |-> 0) (1 |-> (B:Int => ?B')) </store>
+        <bfChan> 0 |-> queue(_, (MSGL:List => ?MSGL')) </bfChan>
+        <lock> #none </lock>
+    ensures (B +Int size(MSGL)) ==K (?B' +Int size(?MSGL'))
+    [trusted]
+
+  claim [termination] :
+        <procs>
+          <proc>
+            <pid> 1 </pid>
+            <k>
+                do
+                  :: $c [ 0 ] ? $a ; $b = $b + 1
+                od
+           //   => .K
+         ...</k>
+            <env>
+              (lval($a,0) |-> loc(0))
+              (lval($b,0) |-> loc(1))
+              (lval($c,0) |-> bfPort(0))
+            </env>
+          </proc>
+        </procs>
+        <store> (0 |-> 0) (1 |-> (B:Int => ?_)) </store>
+        <bfChan> 0 |-> queue(_, (_ => .List)) </bfChan>
+        <lock> #none </lock>
+    [trusted]
+
+  // bf recv
+  claim <procs>
+          <proc>
+            <pid> 1 </pid>
+            <k>
+                do
+                  :: $c [ 0 ] ? $a ; $b = $b + 1
+                od
+          //    => .K
+            </k>
+            <env>
+              (lval($a,0) |-> loc(0))
+              (lval($b,0) |-> loc(1))
+              (lval($c,0) |-> bfPort(0))
+            </env>
+          </proc>
+        </procs>
+        <store> (0 |-> 0) (1 |-> (_ => ?B)) </store>
+        <bfChan> 0 |-> queue(_, MSGL => .List) </bfChan>
+        <lock> #none </lock>
+    ensures ?B ==K size(MSGL)
+*/
+
+/*
+  rule eval(C [ I:Int ] ?? EXPL, (lval(C, I) |-> bfPort(J)) ENV, STR, (J |-> queue(SIZE, MSGL)) BFC)
+    =>
+  eval(C [ I:Int ] ?? EXPL, (lval(C, I) |-> bfPort(J)) ENV, STR, (J |-> queue(SIZE, .List)) BFC)
+  #Or (
+    #Exists VL . #Exists MSGL' .
+    eval(C [ I:Int ] ?? EXPL, (lval(C, I) |-> bfPort(J)) ENV, STR, (J |-> queue(SIZE, ListItem(msg(VL)) MSGL')) BFC)
+  )
+  // ensures size --
+  [simplification]
+*/
+
+/* // channel assign
   claim <procs>
           <proc>
             <pid> 0 </pid>
@@ -29,28 +137,8 @@ module SPEC
           </proc>
         </procs>
         <lock> #none </lock>
-
-/*  // bf recv
-  claim <procs>
-          <proc>
-            <pid> 1 </pid>
-            <k>
-                do
-                  :: $c [ 0 ] ? $a ; $b = $b + 1
-                od
-              => .K </k>
-            <env>
-              (lval($a,0) |-> loc(0))
-              (lval($b,0) |-> loc(1))
-              (lval($c,0) |-> bfPort(0))
-            </env>
-          </proc>
-        </procs>
-        <store> (0 |-> 0) (1 |-> 0) </store>
-        <bfChan> 0 |-> queue(_, _MSGL) </bfChan>
-        <lock> #none </lock>
-    //requires size(MSGL) ==K 
 */
+
 
 /* // rv channel
   claim <procs>
@@ -162,6 +250,7 @@ module SPEC
 /*  // loop invariant
   claim <procs>
           <proc>
+            <pid> 0 </pid>
             <k>
               do
                 :: $a < 3 ; $a = $a + 1
