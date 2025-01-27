@@ -23,13 +23,14 @@ module SPEC
           <proc>
             <pid> 0 </pid>
             <k>
-              $a [ 0 ] > (0 + run $b(3,4))
+              $a [ 0 ] > (40 + run $b ( .Exprs ))
               => .K </k>
             <env> lval($a,0) |-> loc(0) </env>
           </proc>
         </procs>
-        <lock> 0 </lock>
-        <store> 0 |-> -1 </store>
+        <lock> #none </lock>
+        <store> 0 |-> 42 </store>
+        <nextPid> 1 </nextPid>
 
 /*
   claim <procs>

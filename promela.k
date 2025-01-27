@@ -95,7 +95,7 @@ module PROMELA-CONFIG
                   <lock> #none </lock>
 
                   <nextLoc> 0 </nextLoc>
-                 // <nextPid> 0 </nextPid>
+                  <nextPid> 0 </nextPid>
 
                 </T>
 
@@ -200,6 +200,24 @@ module PROMELA
   rule effect(E1 == E2) => effect(E1) ~> effect(E2)
   rule effect(E1 != E2) => effect(E1) ~> effect(E2)
 
+  // Purify - eliminate run operators in expr, given nextPid
+  // Assume Expr can only cantain at most 1 run op (according to the manual)
+  syntax Expr ::= purify(Expr, Int) [function]
+  rule purify(run _ ( _ ), PID) => PID
+  rule purify(V:Value, _) => V
+  rule purify(X:Id, _) => X
+  rule purify(X [ IE ], PID) => (X[purify(IE, PID):Expr]):Vref
+  rule purify(E1 + E2, PID) => purify(E1, PID) + purify(E2, PID)
+  rule purify(E1 - E2, PID) => purify(E1, PID) - purify(E2, PID)
+  rule purify(E1 * E2, PID) => purify(E1, PID) * purify(E2, PID)
+  rule purify(E1 / E2, PID) => purify(E1, PID) / purify(E2, PID)
+  rule purify(E1 < E2, PID) => purify(E1, PID) < purify(E2, PID)
+  rule purify(E1 <= E2, PID) => purify(E1, PID) <= purify(E2, PID)
+  rule purify(E1 > E2, PID) => purify(E1, PID) > purify(E2, PID)
+  rule purify(E1 >= E2, PID) => purify(E1, PID) >= purify(E2, PID)
+  rule purify(E1 == E2, PID) => purify(E1, PID) == purify(E2, PID)
+  rule purify(E1 != E2, PID) => purify(E1, PID) != purify(E2, PID)
+
 
   // Stop for debug
   syntax Stmt ::= "stop"
@@ -274,6 +292,17 @@ module PROMELA
   /*******************************************************
       Collapse Rules 
   *******************************************************/
+  // Expr
+  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
+       <k>
+         ((SetItem(choice(true, #expr(EXP) ~> BK)) _:Set) => .Set) // choose
+       ~> (.K => BK)
+    ...</k>
+       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan> <nextPid> NP </nextPid>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+             andBool eval(purify(EXP, NP), ENV, STR, BFC) ==K true
+             // andBool numRuns(EXP) <= 255
+
   // Assign
   rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
        <k>
@@ -283,12 +312,20 @@ module PROMELA
        <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>  
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
 
+  // Buffered Send
+
+
+  // Buffered Recv
+
+
+
+  // Rendez-Vous
+
 
 
   /*******************************************************
       Effect Rules 
   *******************************************************/
-  // Assign
   // Assign-a) non-channel assignment
   rule <k> #assign(lval(X, I), V:Value) => .K ...</k>
        <env>... lval(X, I) |-> loc(L) ...</env>
