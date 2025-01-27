@@ -24,7 +24,6 @@ module PROMELA-SYNTAX
                      | Vref "=" Expr // Assign
                      | Vref "!" Exprs // Send
                      | Vref "?" Exprs // Recv
-
                      | "skip"
 
   syntax Stmt ::= BasicStmt | Stmt ";" | Stmt ";" Stmt [left, prefer]
@@ -44,7 +43,7 @@ module PROMELA-SYNTAX
                 | Expr "&&" Expr | Expr "||" Expr | Expr "==" Expr | Expr "!=" Expr 
                 | full(Vref) | empty(Vref) | nfull(Vref) | nempty(Vref)
                 | Id "[" Expr "]" "??" Exprs // Recv Poll (only for buf chans)
-
+                | "run" Id "(" Exprs ")"
 
   syntax Exprs ::= List{Expr, ","}
 
@@ -94,6 +93,7 @@ module PROMELA-CONFIG
                   <bfChan color="Salmon"> .Map </bfChan>
 
                   <lock> #none </lock>
+
                   <nextLoc> 0 </nextLoc>
                  // <nextPid> 0 </nextPid>
 
@@ -111,10 +111,11 @@ module PROMELA
 
   syntax KItem ::= "null" | loc(Int) | lval(Id, Int)
                  | choice(Bool, K) // Acquiring Choice
-
-  // Locks
-//  syntax Acq ::= "sil" | "acq"
-  syntax KItem ::= "#rel"
+                 //| guard(BasicStmt)
+                 | "#rel"
+                 | #assign(KItem, KItem)
+                 | #expr(Expr)
+                 | #run(Id, Exprs)
 
   // Chan
   syntax Msg ::= msg(List) | "noMsg"
@@ -176,6 +177,28 @@ module PROMELA
   rule matchMsg((_:Vref, .Exprs), ListItem(_)) => true
   rule matchMsg(_, _) => false [owise]
 
+  // Unfold basic statements
+  syntax K ::= unfold(BasicStmt) [function]
+  rule unfold(S) => S [owise]
+  rule unfold(E:Expr) => #expr(E) ~> effect(E)
+  rule unfold((X [ IE ] = E):BasicStmt) => #assign(X [ IE ], E) ~> effect(IE) ~> effect(E)
+
+  // extract the effect from expr
+  syntax K ::= effect(Expr) [function]
+  rule effect(run X ( EL )) => #run(X, EL)
+  rule effect(_:Value) => .K
+  rule effect(_:Id) => .K
+  rule effect(_[IE]) => effect(IE)
+  rule effect(E1 + E2) => effect(E1) ~> effect(E2)
+  rule effect(E1 - E2) => effect(E1) ~> effect(E2)
+  rule effect(E1 * E2) => effect(E1) ~> effect(E2)
+  rule effect(E1 / E2) => effect(E1) ~> effect(E2)
+  rule effect(E1 < E2) => effect(E1) ~> effect(E2)
+  rule effect(E1 <= E2) => effect(E1) ~> effect(E2)
+  rule effect(E1 > E2) => effect(E1) ~> effect(E2)
+  rule effect(E1 >= E2) => effect(E1) ~> effect(E2)
+  rule effect(E1 == E2) => effect(E1) ~> effect(E2)
+  rule effect(E1 != E2) => effect(E1) ~> effect(E2)
 
 
   // Stop for debug
@@ -203,8 +226,17 @@ module PROMELA
   // Decompose
   rule flatten(SetItem(C) SetItem(C') CS) => flatten(SetItem(C)) flatten(SetItem(C') CS)
 
-  // Flat or Error
+  // Default
   rule flatten(CS:Set) => CS [owise]
+
+  // Guard - protect (guarantee atomicity for multi-step flat stmts)
+  // Expr, Assign, Send, Recv
+  rule flatten(SetItem(choice(false, S:BasicStmt ~> K)))
+    => flatten(SetItem(choice(false, atomic { S } ~> K)))
+
+  // Guard - already protected
+  rule flatten(SetItem(choice(true, S:BasicStmt ~> K)))
+    => SetItem(choice(true, unfold(S) ~> K)) // this is the generic normal form
 
   // Sequence
   rule flatten(SetItem(choice(A, (S1 ; S2):Stmt ~> K)))
@@ -218,6 +250,19 @@ module PROMELA
   rule flatten(SetItem(choice(_, if .Optns fi ~> _)))
     => .Set
 
+  // Loop
+  rule flatten(SetItem(choice(A, do (:: S) OPTL od ~> K)))
+    => flatten(SetItem(choice(A, if (:: S) OPTL fi ~> do (:: S) OPTL od ~> K)))
+
+  // Break - break
+  rule flatten(SetItem(choice(A, break ~> do _ od ~> K)))
+    => flatten(SetItem(choice(A, K)))
+
+  // Break - propagate
+  rule flatten(SetItem(choice(A, break ~> S:Stmt ~> K)))
+    => flatten(SetItem(choice(A, break ~> K)))
+    requires do _ od :/=K S
+
   // Atomic - fresh
   rule flatten(SetItem(choice(false, atomic { S } ~> K)))
     => flatten(SetItem(choice(true, S ~> #rel ~> K)))
@@ -226,55 +271,36 @@ module PROMELA
   rule flatten(SetItem(choice(true, atomic { S } ~> K)))
     => flatten(SetItem(choice(true, S ~> K)))
 
+  /*******************************************************
+      Collapse Rules 
+  *******************************************************/
+  // Assign
+  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
+       <k>
+         ((SetItem(choice(true, #assign(X [ IE ], EXP) ~> BK)) _:Set) => .Set) // choose
+       ~> (.K => (#assign(lval(X, {eval(IE, ENV, STR, BFC)}:>Int), eval(EXP, ENV, STR, BFC)) ~> BK))
+    ...</k>
+       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>  
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
 
-  // Sequence
-  //rule <k> SetItem(choice(_, ((S1 ; S2):Stmt => S1 ~> S2) ~> _)) _:Set ...</k>
 
-  // Select
-  //rule <k> SetItem(choice(A, if (((:: S) OPTL) => OPTL) fi ~> K)) (.Set => SetItem(choice(A, S ~> K))) _:Set ...</k>
-  //rule <k> (SetItem(choice(_, if .Optns fi ~> _)) => .Set) _:Set ...</k>
 
+  /*******************************************************
+      Effect Rules 
+  *******************************************************/
+  // Assign
+  // Assign-a) non-channel assignment
+  rule <k> #assign(lval(X, I), V:Value) => .K ...</k>
+       <env>... lval(X, I) |-> loc(L) ...</env>
+       <store>... L |-> (_ => V) ...</store>
+
+  // Assign-b) channel assignment
+  rule <k> #assign(lval(X, I), V:Port) => .K ...</k>
+       <env>... lval(X, I) |-> (_:Port => V) ...</env>
 
 
 
 /* OLD
-  // Sequence
-  rule <k> SetItem(choice(_E, ((S1 ; S2):Stmt => S1 ~> S2) ~> _K)) _:Set ...</k>
-
-  // Flatten
-  syntax Set ::= flatten(SEffect, Optns, K) [function]
-  rule flatten(E, (:: S) OPTL, K) => SetItem(choice(E, S ~> K)) flatten(E, OPTL, K)
-  rule flatten(_E, .Optns, _K) => .Set
-
-  // Select
-  rule <k> (SetItem(choice(E, if OPTL fi ~> K)) => flatten(E, OPTL, K)) _:Set ...</k>
-
-  // Loop
-  rule <k> SetItem(choice(_E, (.K => if OPTL fi) ~> do OPTL od ~> _K)) _:Set ...</k>
-
-  // break
-  rule <k> SetItem(choice(_E, ((break ~> do _ od) => .K) ~> _K)) _:Set ...</k>
-  rule <k> SetItem(choice(_E, break ~> (_:Stmt => .K) ~> _K)) _:Set ...</k> [owise] // propagate
-
-  // Atomic
-  // outermost atomic
-  rule <k> 
-         SetItem(choice(_ => acq, 
-           (atomic { S } => (S ~> #rel))
-           ~> _K))
-         _:Set
-    ...</k>
-
-  // inner atomic - ignore
-  rule <pid> PID:Int </pid>
-       <k> 
-         SetItem(choice(_, 
-           (atomic { S } => S)
-           ~> _K))
-         _:Set
-    ...</k>
-       <lock> PID </lock>
-
   // Rel
   rule <k> 
          SetItem(choice(_, (#rel => .K) ~> _K))

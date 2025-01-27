@@ -23,18 +23,31 @@ module SPEC
           <proc>
             <pid> 0 </pid>
             <k>
-              if
-                :: if
-                     :: $a > 2 ; $a = 42  // true branch
-                     :: $a > 3 ; $a = 100 // false branch
-                   fi //; $a = 500
-                :: $a > 1 ; $a = 42  // true branch
-              fi
-             => .K ...</k>
+              $a [ 0 ] > (0 + run $b(3,4))
+              => .K </k>
             <env> lval($a,0) |-> loc(0) </env>
           </proc>
         </procs>
         <lock> 0 </lock>
-        <store> 0 |-> 3 </store>
+        <store> 0 |-> -1 </store>
 
+/*
+  claim <procs>
+          <proc>
+            <pid> 0 </pid>
+            <k>
+              if
+                :: if
+                     :: $a [ 0 ] = 2 ; $a [ 0 ] = 42  // true branch
+                     :: $a [ 0 ] = 3 ; $a [ 0 ] = 100 // false branch
+                   fi //; $a = 500
+                :: $a > 1 ; $a [ 0 ] = 42  // true branch
+              fi
+             => .K </k>
+            <env> lval($a,0) |-> loc(0) </env>
+          </proc>
+        </procs>
+        <lock> 0 </lock>
+        <store> 0 |-> -1 </store>
+*/
 endmodule
