@@ -254,7 +254,8 @@ module PROMELA
 
   // Guard - already protected
   rule flatten(SetItem(choice(true, S:BasicStmt ~> K)))
-    => SetItem(choice(true, unfold(S) ~> K)) // this is the generic normal form
+    => SetItem(choice(true, S ~> K)) // this is the generic normal form
+    //=> SetItem(choice(true, unfold(S) ~> K)) // this is the generic normal form
 
   // Sequence
   rule flatten(SetItem(choice(A, (S1 ; S2):Stmt ~> K)))
@@ -295,15 +296,33 @@ module PROMELA
   // Expr
   rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
        <k>
-         ((SetItem(choice(true, #expr(EXP) ~> BK)) _:Set) => .Set) // choose
-       ~> (.K => BK)
+         ((SetItem(choice(true, EXP:Expr ~> BK)) _:Set) => .Set) // choose
+       ~> (.K => (effect(EXP) ~> BK))
     ...</k>
        <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan> <nextPid> NP </nextPid>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
              andBool eval(purify(EXP, NP), ENV, STR, BFC) ==K true
              // andBool numRuns(EXP) <= 255
 
-  // Assign
+  // Assign - TODO: purify IE -> effect(IE) -> purify EXP -> effect(EXP)
+  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
+       <k>
+         ((SetItem(choice(true, (X [ IE ] = EXP):Stmt ~> BK)) _:Set) => .Set) // choose
+       ~> (.K => (#assign(X [ IE ], EXP) ~> BK))
+    ...</k>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+             // andBool numRuns(IE) + numRuns(EXP) <= 255
+
+  // Assign - eval index with side-effects
+  rule <k> (.K => effect(X [ IE ])) ~> #assign(X [ IE ] => lval(X, {eval(purify(IE ,NP), ENV, STR, BFC)}:>Int), _) ...</k>
+       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan> <nextPid> NP </nextPid>
+
+  // Assign - eval expr with side-effects
+  rule <k> (.K => effect(EXP)) ~> #assign(lval(_,_), EXP => eval(purify(EXP, NP), ENV, STR, BFC)) ...</k>
+       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan> <nextPid> NP </nextPid>
+    requires _:Value :/=K EXP
+
+/*
   rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
        <k>
          ((SetItem(choice(true, #assign(X [ IE ], EXP) ~> BK)) _:Set) => .Set) // choose
@@ -311,7 +330,7 @@ module PROMELA
     ...</k>
        <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>  
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
-
+*/
   // Buffered Send
 
 

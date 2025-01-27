@@ -23,7 +23,7 @@ module SPEC
           <proc>
             <pid> 0 </pid>
             <k>
-              $a [ 0 ] > (40 + run $b ( .Exprs ))
+              ($a [ 0 + run $b ( .Exprs ) ] = (40 + run $b ( .Exprs ))):Stmt
               => .K </k>
             <env> lval($a,0) |-> loc(0) </env>
           </proc>
