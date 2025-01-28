@@ -23,13 +23,14 @@ module SPEC
           <proc>
             <pid> 0 </pid>
             <k>
-              ($a [ 0 + run $b ( .Exprs ) ] = (40 + run $b ( .Exprs ))):Stmt
-              => .K </k>
-            <env> lval($a,0) |-> loc(0) </env>
+              $c [ 0 ] ! 42
+              => .K
+            </k>
+            <env> lval($c,0) |-> bfPort(0) </env>
           </proc>
         </procs>
         <lock> #none </lock>
-        <store> 0 |-> 42 </store>
+        <bfChan> 0 |-> queue(100, .List) </bfChan>
         <nextPid> 1 </nextPid>
 
 /*

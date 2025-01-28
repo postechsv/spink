@@ -178,10 +178,12 @@ module PROMELA
   rule matchMsg(_, _) => false [owise]
 
   // Unfold basic statements
+/*
   syntax K ::= unfold(BasicStmt) [function]
   rule unfold(S) => S [owise]
   rule unfold(E:Expr) => #expr(E) ~> effect(E)
   rule unfold((X [ IE ] = E):BasicStmt) => #assign(X [ IE ], E) ~> effect(IE) ~> effect(E)
+*/
 
   // extract the effect from expr
   syntax K ::= effect(Expr) [function]
@@ -291,9 +293,9 @@ module PROMELA
     => flatten(SetItem(choice(true, S ~> K)))
 
   /*******************************************************
-      Collapse Rules 
+      Expr
   *******************************************************/
-  // Expr
+  // Expr - Guard
   rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
        <k>
          ((SetItem(choice(true, EXP:Expr ~> BK)) _:Set) => .Set) // choose
@@ -304,7 +306,10 @@ module PROMELA
              andBool eval(purify(EXP, NP), ENV, STR, BFC) ==K true
              // andBool numRuns(EXP) <= 255
 
-  // Assign - TODO: purify IE -> effect(IE) -> purify EXP -> effect(EXP)
+  /*******************************************************
+     Assign 
+  *******************************************************/
+  // Assign - Guard
   rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
        <k>
          ((SetItem(choice(true, (X [ IE ] = EXP):Stmt ~> BK)) _:Set) => .Set) // choose
@@ -314,7 +319,7 @@ module PROMELA
              // andBool numRuns(IE) + numRuns(EXP) <= 255
 
   // Assign - eval index with side-effects
-  rule <k> (.K => effect(X [ IE ])) ~> #assign(X [ IE ] => lval(X, {eval(purify(IE ,NP), ENV, STR, BFC)}:>Int), _) ...</k>
+  rule <k> (.K => effect(IE)) ~> #assign(X [ IE ] => lval(X, {eval(purify(IE ,NP), ENV, STR, BFC)}:>Int), _) ...</k>
        <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan> <nextPid> NP </nextPid>
 
   // Assign - eval expr with side-effects
@@ -322,29 +327,6 @@ module PROMELA
        <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan> <nextPid> NP </nextPid>
     requires _:Value :/=K EXP
 
-/*
-  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
-       <k>
-         ((SetItem(choice(true, #assign(X [ IE ], EXP) ~> BK)) _:Set) => .Set) // choose
-       ~> (.K => (#assign(lval(X, {eval(IE, ENV, STR, BFC)}:>Int), eval(EXP, ENV, STR, BFC)) ~> BK))
-    ...</k>
-       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>  
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-*/
-  // Buffered Send
-
-
-  // Buffered Recv
-
-
-
-  // Rendez-Vous
-
-
-
-  /*******************************************************
-      Effect Rules 
-  *******************************************************/
   // Assign-a) non-channel assignment
   rule <k> #assign(lval(X, I), V:Value) => .K ...</k>
        <env>... lval(X, I) |-> loc(L) ...</env>
@@ -354,6 +336,50 @@ module PROMELA
   rule <k> #assign(lval(X, I), V:Port) => .K ...</k>
        <env>... lval(X, I) |-> (_:Port => V) ...</env>
 
+  /*******************************************************
+     Channel 
+  *******************************************************/
+
+  // TODO: Buffered Send
+  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
+       <k>
+         ((SetItem(choice(true, C [ IE ] ! EXP ~> BK)) _:Set) => .Set) // choose
+         ~> (.K => (effect(IE) ~> #send(eval(C [ purify(IE, NP) ], ENV, STR, BFC), EXP) ~> BK))
+    ...</k>
+       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan> <nextPid> NP </nextPid>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+             andBool bfPort(_) :=K eval(C [ purify(IE, NP) ], ENV, STR, BFC) // check port type
+             andBool eval(nfull(C [ purify(IE, NP) ]), ENV, STR, BFC) ==K true // buf send poll
+
+  // 2) make msg
+  rule <k> SetItem(choice(_E, (#send(bfPort(_), EXPL:Exprs => msg(evalList(EXPL, ENV, STR, BFC)))) ~> _K)) _:Set ...</k>
+       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
+
+  // 3) push msg
+  rule <k> SetItem(choice(_E, (#send(bfPort(J), MSG:Msg) => .K) ~> _K)) _:Set ...</k>
+       <bfChan>... J |-> queue(_SIZE, _LIST (.List => ListItem(MSG))) ...</bfChan>
+
+  // TODO: Buffered Recv
+/*
+  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
+       <k>
+         SetItem(choice(_E => sil, // init acq
+           (#recv(C [ IEXP ] => eval(C [ IEXP ], ENV, STR, BFC), EXPL)) ~> _K))
+         (_:Set => .Set) // choose
+    ...</k>
+       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+             andBool bfPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) // check port type
+             andBool eval(C [ IEXP ] ?? EXPL, ENV, STR, BFC) ==K true // buf recv poll
+*/
+
+  // TODO: Rendez-Vous
+
+
+
+  /*******************************************************
+      Effect Rules 
+  *******************************************************/
 
 
 /* OLD
