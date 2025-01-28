@@ -122,7 +122,7 @@ module PROMELA
   syntax Queue ::= queue(Int, List) // queue size , list of Msg's
   syntax Port ::= bfPort(Int) | rvPort(Int)
   syntax Value ::= Port
-  syntax Stmt ::= #send(KItem, KItem) | #recv(KItem, KItem)
+  syntax KItem ::= #send(KItem, KItem) | #recv(KItem, KItem)
 
 
   /****************
@@ -340,11 +340,11 @@ module PROMELA
      Channel 
   *******************************************************/
 
-  // TODO: Buffered Send
+  // Buffered Send
   rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
        <k>
-         ((SetItem(choice(true, C [ IE ] ! EXP ~> BK)) _:Set) => .Set) // choose
-         ~> (.K => (effect(IE) ~> #send(eval(C [ purify(IE, NP) ], ENV, STR, BFC), EXP) ~> BK))
+         ((SetItem(choice(true, C [ IE ] ! EXPL ~> BK)) _:Set) => .Set) // choose
+         ~> (.K => (effect(IE) ~> #send(eval(C [ purify(IE, NP) ], ENV, STR, BFC), EXPL) ~> BK))
     ...</k>
        <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan> <nextPid> NP </nextPid>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
@@ -352,26 +352,36 @@ module PROMELA
              andBool eval(nfull(C [ purify(IE, NP) ]), ENV, STR, BFC) ==K true // buf send poll
 
   // 2) make msg
-  rule <k> SetItem(choice(_E, (#send(bfPort(_), EXPL:Exprs => msg(evalList(EXPL, ENV, STR, BFC)))) ~> _K)) _:Set ...</k>
+  rule <k> #send(bfPort(_), EXPL:Exprs => msg(evalList(EXPL, ENV, STR, BFC))) ...</k>
        <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
 
   // 3) push msg
-  rule <k> SetItem(choice(_E, (#send(bfPort(J), MSG:Msg) => .K) ~> _K)) _:Set ...</k>
+  rule <k> #send(bfPort(J), MSG:Msg) => .K ...</k>
        <bfChan>... J |-> queue(_SIZE, _LIST (.List => ListItem(MSG))) ...</bfChan>
 
   // TODO: Buffered Recv
-/*
   rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
        <k>
-         SetItem(choice(_E => sil, // init acq
-           (#recv(C [ IEXP ] => eval(C [ IEXP ], ENV, STR, BFC), EXPL)) ~> _K))
-         (_:Set => .Set) // choose
+         ((SetItem(choice(true, C [ IE ] ? EXPL ~> BK)) _:Set) => .Set) // choose
+         ~> (.K => (effect(IE) ~> #recv(eval(C [ purify(IE, NP) ], ENV, STR, BFC), EXPL) ~> BK))
     ...</k>
-       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
+       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan> <nextPid> NP </nextPid>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
-             andBool bfPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) // check port type
-             andBool eval(C [ IEXP ] ?? EXPL, ENV, STR, BFC) ==K true // buf recv poll
-*/
+             andBool bfPort(_) :=K eval(C [ purify(IE, NP) ], ENV, STR, BFC) // check port type
+             andBool eval(C [ purify(IE, NP) ] ?? EXPL, ENV, STR, BFC) ==K true // buf recv poll
+
+  // Recv - 2) pop msg
+   rule <k> #recv(bfPort(J), EXPL) => #assignMsg(EXPL, VL) ...</k>
+        <bfChan>... J |-> queue(_SIZE, (ListItem(msg(VL)) => .List) _LIST) ...</bfChan>
+
+  // Recv - 3) assign msg
+  syntax KItem ::= #assignMsg(Exprs, List)
+  rule <k> #assignMsg((E , E' , EL), ListItem(V) VL)
+           => (#assignMsg(E , ListItem(V)) ~> #assignMsg((E' , EL), VL))
+    ...</k>
+  rule <k> #assignMsg((V:Value , .Exprs), ListItem(V)) => .K ...</k>
+  rule <k> #assignMsg((X:Id , .Exprs), ListItem(V)) => #assign(X [ 0 ], V) ...</k>
+  rule <k> #assignMsg((X [ IE ] , .Exprs), ListItem(V)) => #assign(X [ IE ], V) ...</k>
 
   // TODO: Rendez-Vous
 
