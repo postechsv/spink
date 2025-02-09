@@ -20,20 +20,17 @@ module PROMELA-SYNTAX
 
   syntax Types ::= List{Type, ","}
 
-  syntax BasicStmt ::= Decl | Expr | "run" Id "(" Exprs ")"
+  syntax BasicStmt ::= Decl | Expr
                      | Vref "=" Expr // Assign
                      | Vref "!" Exprs // Send
                      | Vref "?" Exprs // Recv
                      | "skip"
+                     | "break"
+                     | "goto" Id
 
   syntax Stmt ::= BasicStmt | Stmt ";" | Stmt ";" Stmt [left, prefer]
                 | "atomic" "{" Stmt "}"
                 | "if" Optns "fi" | "do" Optns "od"
-                | "break" 
-
-//  syntax Stmt ::= "skip" | Stmt ";" | Stmt ";" Stmt [left, prefer] | Decl | Const | Expr
-//                | Vref "=" Expr | "run" Id "(" Exprs ")"  | "atomic" "{" Stmt "}" | "if" Optns "fi"
-//                | Vref "!" Exprs | Vref "?" Exprs
 
   syntax Expr ::= Const | Vref
                 | "(" Expr ")" [bracket]
@@ -72,7 +69,7 @@ module PROMELA-CONFIG
   syntax Lock ::= Int | "#none"
 
   configuration <T color="yellow">
-/*                  <proctypes>
+                  <proctypes>
                     <proctype multiplicity="*" type="Map" initial="">
                       <procName> #Configurator </procName>
                       <procParams> .Decls </procParams>
@@ -80,10 +77,11 @@ module PROMELA-CONFIG
                       <gotoMap> .Map </gotoMap>
                     </proctype>
                   </proctypes>
-*/
+
                   <procs> // active procs
                     <proc multiplicity="*" type="Map" color="orange" initial="">
                       <pid> -1 </pid>
+                      <name> #Configurator </name>
                       <k color="green"> $PGM:Spec </k>
                       <env color="LightSalmon"> .Map </env>
                     </proc>
@@ -229,9 +227,10 @@ module PROMELA
   rule <k> (.Set:K => .K) ...</k>
 
 
-  // Lift
+  // Lift & Decompose
   rule <pid> PID </pid> <lock> LCK </lock>
        <k> S:Stmt => flatten(SetItem(choice(PID ==K LCK, S))) ...</k>
+    requires (goto _ :/=K S) andBool ((_ ; _):Stmt :/=K S)
 
   // Sequence - TODO higher priority than lift
   rule <k> (S1 ; S2):Stmt => S1 ~> S2 ...</k>
@@ -250,9 +249,10 @@ module PROMELA
   rule flatten(CS:Set) => CS [owise]
 
   // Guard - protect (guarantee atomicity for multi-step flat stmts)
-  // Expr, Assign, Send, Recv
+  // Expr, Assign, Send, Recv (multi-step stmts)
   rule flatten(SetItem(choice(false, S:BasicStmt ~> K)))
     => flatten(SetItem(choice(false, atomic { S } ~> K)))
+   // requires S is not goto or break // these should be preceded by skip(true) via preprocessing
 
   // Guard - already protected
   rule flatten(SetItem(choice(true, S:BasicStmt ~> K)))
@@ -276,13 +276,13 @@ module PROMELA
     => flatten(SetItem(choice(A, if (:: S) OPTL fi ~> do (:: S) OPTL od ~> K)))
 
   // Break - break
-  rule flatten(SetItem(choice(A, break ~> do _ od ~> K)))
-    => flatten(SetItem(choice(A, K)))
+//  rule flatten(SetItem(choice(A, break ~> do _ od ~> K)))
+//    => flatten(SetItem(choice(A, K)))
 
   // Break - propagate
-  rule flatten(SetItem(choice(A, break ~> S:Stmt ~> K)))
-    => flatten(SetItem(choice(A, break ~> K)))
-    requires do _ od :/=K S
+//  rule flatten(SetItem(choice(A, break ~> S:Stmt ~> K)))
+//    => flatten(SetItem(choice(A, break ~> K)))
+//    requires do _ od :/=K S
 
   // Atomic - fresh
   rule flatten(SetItem(choice(false, atomic { S } ~> K)))
@@ -359,7 +359,7 @@ module PROMELA
   rule <k> #send(bfPort(J), MSG:Msg) => .K ...</k>
        <bfChan>... J |-> queue(_SIZE, _LIST (.List => ListItem(MSG))) ...</bfChan>
 
-  // TODO: Buffered Recv
+  // Buffered Recv
   rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
        <k>
          ((SetItem(choice(true, C [ IE ] ? EXPL ~> BK)) _:Set) => .Set) // choose
@@ -384,23 +384,67 @@ module PROMELA
   rule <k> #assignMsg((X [ IE ] , .Exprs), ListItem(V)) => #assign(X [ IE ], V) ...</k>
 
   // TODO: Rendez-Vous
-
+  // 1) check rendezvous - TODO: atomic effect (seems recv takes the lock)
+  // TODO atomicity pass: search 'global atomic chain of executions' in https://spinroot.com/spin/Man/atomic.html
+/*
+  rule
+    <proc>...
+      <pid> SID </pid>
+      <k>
+        ((SetItem(choice(true,  (SC [ SIE ] ! SEL ~> SBK))) _:Set) => .Set)
+        ~> (.K => SBK)
+   ...</k>
+      <env> ENV </env>
+ ...</proc>
+    <proc>...
+      <pid> RID </pid>
+      <k>
+        ((SetItem(choice(true, (RC [ RIE ] ? REL ~> RBK))) _:Set) => .Set)
+        ~> (.K => #assignMsg(REL, evalList(SEL, ENV, STR, BFC)))
+   ...</k>
+      <env> ENV' </env>
+ ...</proc>
+    <lock> LCK </lock>
+    <store> STR </store> <bfChan> BFC </bfChan>
+    requires (LCK ==K #none orBool LCK ==K SID orBool LCK ==K RID)
+             andBool rvPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) // check port type
+             andBool eval(C [ IEXP ], ENV, STR, BFC) ==K eval(C' [ IEXP' ], ENV', STR, BFC) // check port id
+*/
 
 
   /*******************************************************
-      Effect Rules 
+      Atomic 
   *******************************************************/
 
+  rule <lock> PID => #none </lock> <pid> PID </pid> // acquire
+       <k> #rel => .K ...</k>
 
-/* OLD
-  // Rel
-  rule <k> 
-         SetItem(choice(_, (#rel => .K) ~> _K))
-         _:Set // this may not be necessary
+  /*******************************************************
+      Loop
+  *******************************************************/
+  // break
+/*
+  syntax KItem ::= "#break"
+
+  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
+       <k>
+         ((SetItem(choice(true, break ~> BK)) _:Set) => .Set) // choose
+       ~> (.K => (#break ~> BK))
     ...</k>
-       <lock> _ => #none </lock>
-
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
 */
+  /*******************************************************
+      Goto
+  *******************************************************/
+
+  rule <lock> _LCK => #if B #then PID #else #none #fi </lock>
+       <pid> PID </pid> // acquire
+       <name> P </name>
+       <k> (goto L ~> _) => K </k>
+       <proctype>...
+         <procName> P </procName>
+         <gotoMap>... L |-> choice(B, K) ...</gotoMap> // TODO rename choice as e.g. K w/ atomic ctx
+    ...</proctype> 
 
   /*******************************************************
         BASIC ACTIONS (BasicStmt)
@@ -410,171 +454,4 @@ module PROMELA
 
 
 
-/* OLD
-  // getLock : result of applying EFF on LCK for PID
-  syntax Lock ::= getLock(SEffect, Lock, Int) [function]
-  rule getLock(sil, #none, _PID) => #none
-  rule getLock(_EFF, _LCK, PID) => PID [owise]
-
-  // Expr
-  rule <k> SetItem(choice(_, (EXP:Expr => .K) ~> _)) (_:Set => .Set) ...</k>
-       <env> ENV </env>  <store> STR </store>  <bfChan> BFC </bfChan>
-    requires eval(EXP, ENV, STR, BFC) ==K true
-
-  // Assign - TODO: eval(I)
-  rule (X:Id = V):Stmt => (X [ 0 ] = V):Stmt // desugar
-
-  // assign - new version
-  syntax Stmt ::= #assign(KItem, KItem)
-
-  rule <k> SetItem(choice(_E, ((X [ IE ] = E):Stmt => atomic { #assign(X [ IE ], E) }) ~> _K)) _:Set ...</k>
-
-  // 1) Prologue : identification
-  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
-       <k>
-         SetItem(choice(_EFF => sil, // init acq
-           #assign(X [ IE ] => lval(X, {eval(IE, ENV, STR, BFC)}:>Int), EXP => eval(EXP, ENV, STR, BFC)) ~> _K))
-         (_:Set => .Set) // choose
-    ...</k>
-       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>  
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-
-  // 2-a) non-channel assignment
-  rule <k> SetItem(choice(_E, (#assign(lval(X, I), V:Value) => .K) ~> _K)) _:Set ...</k>
-       <env>... lval(X, I) |-> loc(L) ...</env>
-       <store>... L |-> (_ => V) ...</store>
-
-  // 2-b) channel assignment
-  rule <k> SetItem(choice(_E, (#assign(lval(X, I), V:Port) => .K) ~> _K)) _:Set ...</k>
-       <env>... lval(X, I) |-> (_:Port => V) ...</env>
-
-  
-
-  // Decl - TODO for channels
-  rule T:Type X:Id => (T X [ 1 ]) // desugar
-  // rule T X, IVAR => T X ; T IVAR // desugar
-  // canonical form: T X [ I ] = EXP
-  rule <pid> PID </pid>
-       <k>
-         SetItem(choice(EFF => sil, // init side-effect
-           (_T:Type X [ I:Int ] = EXP => .K) ~> _K))
-         (_:Set => .Set) // side-effect : choose
-    ...</k>
-       <env> ENV (.Map => getArrayEnv(X,I,L)) </env>
-       <store> STR (.Map => L ... (L +Int I -Int 1) |-> eval(EXP, ENV, STR, BFC)) </store>
-       <bfChan> BFC </bfChan>
-       <lock> LCK => getLock(EFF, LCK, PID) </lock> // side-effect : acquire
-       <nextLoc> L => L +Int I </nextLoc>
-    requires LCK ==K #none orBool LCK ==K PID
-
-  // (lval(X, 0) |-> L) ... (lval(X, I - 1) |-> L + I - 1) (used in Decl)
-  syntax Map ::= getArrayEnv(Id, Int, Int) [function]
-  rule getArrayEnv(X, 1, L) => (lval(X, 0) |-> loc(L))
-  rule getArrayEnv(X, I, L) => (lval(X, I -Int 1) |-> loc(L +Int I -Int 1)) getArrayEnv(X, I -Int 1, L) [owise] //requires I >Int 1
-
-  // multiple map updates for store (used in Decl)
-  syntax Map ::= Int "..." Int "|->" K [function]
-  rule N...M |-> _ => .Map requires N >Int M
-  rule N...M |-> K => N |-> K (N +Int 1)...M |-> K requires N <=Int M
-
-
-
-
-  // can't tell yet if its rv or async channel (may change if C [ IEXP ] contains global variables)
-  rule <k> SetItem(choice(_E, (C [ IEXP ] ! EXPL => atomic { #send(C [ IEXP ], EXPL) }) ~> _K)) _:Set ...</k>
-  rule <k> SetItem(choice(_E, (C [ IEXP ] ? EXPL => atomic { #recv(C [ IEXP ], EXPL) }) ~> _K)) _:Set ...</k>
-
-
-    //               //
-   // Buffered Send //
-  //               //
-
-  // 1) Prologue: check buffered sendable
-  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
-       <k>
-         SetItem(choice(_E => sil, // init acq
-           (#send(C [ IEXP ] => eval(C [ IEXP ], ENV, STR, BFC), _)) ~> _K))
-         (_:Set => .Set) // choose
-    ...</k>
-       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-             andBool bfPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) // check port type
-             andBool eval(nfull(C [ IEXP ]), ENV, STR, BFC) ==K true // buf send poll
-
-  // 2) make msg
-  rule <k> SetItem(choice(_E, (#send(bfPort(_), EXPL:Exprs => msg(evalList(EXPL, ENV, STR, BFC)))) ~> _K)) _:Set ...</k>
-       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
-
-  // 3) push msg
-  rule <k> SetItem(choice(_E, (#send(bfPort(J), MSG:Msg) => .K) ~> _K)) _:Set ...</k>
-       <bfChan>... J |-> queue(_SIZE, _LIST (.List => ListItem(MSG))) ...</bfChan>
-
-    //               //
-   // Buffered Recv //
-  //               //
-
-  // 1) Prologue: check buffered recvable
-  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
-       <k>
-         SetItem(choice(_E => sil, // init acq
-           (#recv(C [ IEXP ] => eval(C [ IEXP ], ENV, STR, BFC), EXPL)) ~> _K))
-         (_:Set => .Set) // choose
-    ...</k>
-       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-             andBool bfPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) // check port type
-             andBool eval(C [ IEXP ] ?? EXPL, ENV, STR, BFC) ==K true // buf recv poll
-
-  // 2) pop msg
-   rule <k> SetItem(choice(_E, (#recv(bfPort(J), EXPL) => #assignMsg(EXPL, VL)) ~> _K)) _:Set ...</k>
-       <bfChan>... J |-> queue(_SIZE, (ListItem(msg(VL)) => .List) _LIST) ...</bfChan>
-
-  // 3) assign msg
-  syntax Stmt ::= #assignMsg(Exprs, List)
-  rule <k> SetItem(choice(_E, ( 
-                                #assignMsg((E , E' , EL), ListItem(V) VL)
-                                =>
-                                (#assignMsg(E , ListItem(V)) ~> #assignMsg((E' , EL), VL))
-                              ) ~> _K)) _:Set ...</k>
-
-  rule <k> SetItem(choice(_E, ( #assignMsg((V:Value , .Exprs), ListItem(V)) => .K ) ~> _K)) _:Set ...</k>
-  rule <k> SetItem(choice(_E, ( #assignMsg((X:Id , .Exprs), ListItem(V)) => (X = V):Stmt ) ~> _K)) _:Set ...</k>
-  rule <k> SetItem(choice(_E, ( #assignMsg((X [ E ] , .Exprs), ListItem(V)) => (X [ E ] = V):Stmt ) ~> _K)) _:Set ...</k>
-
-
-
-    //               //
-   //  Rendez-Vous  //
-  //               //
-  // 1) check rendezvous - TODO: atomic effect (seems recv takes the lock)
-  rule
-    <proc>...
-      <k> SetItem(choice(_E,  ((#send(C [ IEXP ], SEL) => .K) ~> _K))) (_:Set => .Set) ...</k>
-      <env> ENV </env>
- ...</proc>
-    <proc>...
-      <k> SetItem(choice(_E', ((#recv(C' [ IEXP' ], REL) => #assignMsg(REL, evalList(SEL, ENV, STR, BFC))) ~> _K'))) (_:Set => .Set) ...</k>
-      <env> ENV' </env>
- ...</proc>
-    <store> STR </store> <bfChan> BFC </bfChan>
-    requires rvPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) // check port type
-             andBool eval(C [ IEXP ], ENV, STR, BFC) ==K eval(C' [ IEXP' ], ENV', STR, BFC) // check port id
-
-*/
-
-
-
-
-  // Run - WARNING: env is NOT INHERITED!!
-/*
-  rule <k> run X:Id ( _EL:Exprs ) => .K ...</k> <env> ENV </env>
-       <proctype>... <procName> X </procName> <procParams> _DL </procParams> <procBody> S </procBody> ...</proctype>
-       <nextPid> L => L +Int 1 </nextPid>
-       (.Bag => <proc>...
-                  <pid> L </pid>
-                  //<pName> X </pName>
-                  <k> SetItem(choice(sil, S)) </k> // TODO DL = EL ~> S
-                  <env> ENV </env> // inherits ENV from the parent
-             ...</proc>)
-*/
 endmodule
