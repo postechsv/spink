@@ -147,6 +147,9 @@ module PROMELA
   rule eval(E1 - E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int -Int {eval(E2, ENV, STR, BFC)}:>Int
   rule eval(E1 * E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int *Int {eval(E2, ENV, STR, BFC)}:>Int
   rule eval(E1 / E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int /Int {eval(E2, ENV, STR, BFC)}:>Int
+
+  rule eval(E1 && E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Bool andBool {eval(E2, ENV, STR, BFC)}:>Bool
+  rule eval(E1 || E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Bool orBool {eval(E2, ENV, STR, BFC)}:>Bool
  
   rule eval(E1 < E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int <Int {eval(E2, ENV, STR, BFC)}:>Int
   rule eval(E1 <= E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int <=Int {eval(E2, ENV, STR, BFC)}:>Int
@@ -193,6 +196,8 @@ module PROMELA
   rule effect(E1 - E2) => effect(E1) ~> effect(E2)
   rule effect(E1 * E2) => effect(E1) ~> effect(E2)
   rule effect(E1 / E2) => effect(E1) ~> effect(E2)
+  rule effect(E1 && E2) => effect(E1) ~> effect(E2)
+  rule effect(E1 || E2) => effect(E1) ~> effect(E2)
   rule effect(E1 < E2) => effect(E1) ~> effect(E2)
   rule effect(E1 <= E2) => effect(E1) ~> effect(E2)
   rule effect(E1 > E2) => effect(E1) ~> effect(E2)
@@ -211,6 +216,8 @@ module PROMELA
   rule purify(E1 - E2, PID) => purify(E1, PID) - purify(E2, PID)
   rule purify(E1 * E2, PID) => purify(E1, PID) * purify(E2, PID)
   rule purify(E1 / E2, PID) => purify(E1, PID) / purify(E2, PID)
+  rule purify(E1 && E2, PID) => purify(E1, PID) && purify(E2, PID)
+  rule purify(E1 || E2, PID) => purify(E1, PID) || purify(E2, PID)
   rule purify(E1 < E2, PID) => purify(E1, PID) < purify(E2, PID)
   rule purify(E1 <= E2, PID) => purify(E1, PID) <= purify(E2, PID)
   rule purify(E1 > E2, PID) => purify(E1, PID) > purify(E2, PID)
@@ -223,17 +230,25 @@ module PROMELA
   syntax Stmt ::= "stop"
 
   // Done
-  rule <k> (SetItem ( choice ( _ , .K ) ) => .Set) ...</k>
-  rule <k> (.Set:K => .K) ...</k>
+//  rule <k> (SetItem ( choice ( _ , .K ) ) => .Set) ...</k>
+
+
+  rule <pid> PID </pid> <lock> LCK </lock>
+       <k> (.Set:K => .K) ...</k>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+
 
 
   // Lift & Decompose
   rule <pid> PID </pid> <lock> LCK </lock>
        <k> S:Stmt => flatten(SetItem(choice(PID ==K LCK, S))) ...</k>
     requires (goto _ :/=K S) andBool ((_ ; _):Stmt :/=K S)
+             andBool (LCK ==K #none orBool LCK ==K PID) // check lock
 
-  // Sequence - TODO higher priority than lift
-  rule <k> (S1 ; S2):Stmt => S1 ~> S2 ...</k>
+  // Sequence
+  rule <pid> PID </pid> <lock> LCK </lock>
+       <k> (S1 ; S2):Stmt => S1 ~> S2 ...</k>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
 
 
   /*******************************************************
@@ -275,15 +290,6 @@ module PROMELA
   rule flatten(SetItem(choice(A, do (:: S) OPTL od ~> K)))
     => flatten(SetItem(choice(A, if (:: S) OPTL fi ~> do (:: S) OPTL od ~> K)))
 
-  // Break - break
-//  rule flatten(SetItem(choice(A, break ~> do _ od ~> K)))
-//    => flatten(SetItem(choice(A, K)))
-
-  // Break - propagate
-//  rule flatten(SetItem(choice(A, break ~> S:Stmt ~> K)))
-//    => flatten(SetItem(choice(A, break ~> K)))
-//    requires do _ od :/=K S
-
   // Atomic - fresh
   rule flatten(SetItem(choice(false, atomic { S } ~> K)))
     => flatten(SetItem(choice(true, S ~> #rel ~> K)))
@@ -296,7 +302,8 @@ module PROMELA
       Expr
   *******************************************************/
   // Expr - Guard
-  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
+  rule <lock> LCK => PID </lock>
+       <pid> PID </pid> // acquire
        <k>
          ((SetItem(choice(true, EXP:Expr ~> BK)) _:Set) => .Set) // choose
        ~> (.K => (effect(EXP) ~> BK))
@@ -310,7 +317,8 @@ module PROMELA
      Assign 
   *******************************************************/
   // Assign - Guard
-  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
+  rule <lock> LCK => PID </lock>
+       <pid> PID </pid> // acquire
        <k>
          ((SetItem(choice(true, (X [ IE ] = EXP):Stmt ~> BK)) _:Set) => .Set) // choose
        ~> (.K => (#assign(X [ IE ], EXP) ~> BK))
@@ -450,7 +458,7 @@ module PROMELA
         BASIC ACTIONS (BasicStmt)
   *******************************************************/
 
-  rule (X:Id = V):Stmt => (X [ 0 ] = V):Stmt // desugar
+//  rule (X:Id = V):Stmt => (X [ 0 ] = V):Stmt // desugar
 
 
 
