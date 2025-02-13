@@ -21,6 +21,7 @@ module SPEC
               | "$disp" [token] | "$serv" [token]
               | "$stat" [token] | "$tick" [token]
 
+  // example2) bakery - nonstarvation
   claim <procs>
           <proc>
             <pid> 1 </pid>
@@ -43,7 +44,7 @@ module SPEC
                      $serv[0] = $serv + 1
                    }
               od
-              //=> ?_
+              => ?_
             </k>
             <env>
               (lval($disp,0) |-> loc(0))
@@ -74,7 +75,7 @@ module SPEC
                      $serv[0] = $serv + 1
                    }
               od
-              //=> ?_
+              => ?_
             </k>
             <env>
               (lval($disp,0) |-> loc(0))
@@ -88,92 +89,19 @@ module SPEC
         <lock> #none </lock>
 
         <store>
-          (0 |-> (0 => ?_)) // disp
-          (1 |-> (0 => ?_)) // serv
-          (2 |-> (0 => 1)) // stat1
-          (3 |-> (-1 => ?_)) // tick1
-          (4 |-> (0 => ?_)) // stat2
-          (5 |-> (-1 => ?_)) // tick2
-        </store>
-
-
-  claim <procs>
-          <proc>
-            <pid> 1 </pid>
-            <name> $p1 </name>
-            <k>
-              do
-                :: atomic {
-                     $stat == 0 ;
-                     $stat[0] = 1 ;
-                     $tick[0] = $disp ; // wait(disp)
-                     $disp[0] = $disp + 1
-                   }
-                :: atomic {
-                     ($stat == 1) && ($tick == $serv) ; 
-                     $stat[0] = 2 // crit
-                   }
-                :: atomic {
-                     $stat == 2 ;
-                     $stat[0] = 0 ; // idle
-                     $serv[0] = $serv + 1
-                   }
-              od
-              //=> ?_
-            </k>
-            <env>
-              (lval($disp,0) |-> loc(0))
-              (lval($serv,0) |-> loc(1))
-              (lval($stat,0) |-> loc(2))
-              (lval($tick,0) |-> loc(3))
-            </env>
-          </proc>
-
-          <proc>
-            <pid> 2 </pid>
-            <name> $p2 </name>
-            <k>
-              do
-                :: atomic {
-                     $stat == 0 ;
-                     $stat[0] = 1 ;
-                     $tick[0] = $disp ; // wait(disp)
-                     $disp[0] = $disp + 1
-                   }
-                :: atomic {
-                     ($stat == 1) && ($tick == $serv) ; 
-                     $stat[0] = 2 // crit
-                   }
-                :: atomic {
-                     $stat == 2 ;
-                     $stat[0] = 0 ; // idle
-                     $serv[0] = $serv + 1
-                   }
-              od
-              //=> ?_
-            </k>
-            <env>
-              (lval($disp,0) |-> loc(0))
-              (lval($serv,0) |-> loc(1))
-              (lval($stat,0) |-> loc(4))
-              (lval($tick,0) |-> loc(5))
-            </env>
-          </proc>
-        </procs>
-
-        <lock> #none </lock>
-
-        <store>
-          (0 |-> (N:Int => ?_)) // disp
-          (1 |-> (N => ?_)) // serv
-          (2 |-> (0 => 1)) // stat1
+          (0 |-> (N:Int => ?DISP:Int)) // disp
+          (1 |-> (N => ?SERV:Int)) // serv
+          (2 |-> (0 => 2)) // stat1
           (3 |-> (_ => ?_)) // tick1
           (4 |-> (0 => ?_)) // stat2
           (5 |-> (_ => ?_)) // tick2
         </store>
-    //[trusted]
 
-  // example2) bakery
+    ensures (?SERV <=Int ?DISP) andBool (?DISP <=Int ?SERV +Int 2)
+            //andBool (?SERV <=Int ?T1) andBool (?T1 <=Int ?SERV +Int 1) // more stronger assertion
+
+
+  // example2) bakery FIXME: this is meaningless! trivially true because the initial state already satisfies the condition
 /*
   claim <procs>
           <proc>
