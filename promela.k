@@ -237,19 +237,17 @@ module PROMELA
        <k> (.Set:K => .K) ...</k>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
 
-
-
   // Lift & Decompose
   rule <pid> PID </pid> <lock> LCK </lock>
        <k> S:Stmt => flatten(SetItem(choice(PID ==K LCK, S))) ...</k>
     requires (goto _ :/=K S) andBool ((_ ; _):Stmt :/=K S)
              andBool (LCK ==K #none orBool LCK ==K PID) // check lock
+    [owise]
 
   // Sequence
   rule <pid> PID </pid> <lock> LCK </lock>
        <k> (S1 ; S2):Stmt => S1 ~> S2 ...</k>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
-
 
   /*******************************************************
       Flattening Rules 
