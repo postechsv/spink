@@ -242,7 +242,7 @@ module PROMELA
        <k> S:Stmt => flatten(SetItem(choice(PID ==K LCK, S))) ...</k>
     requires (goto _ :/=K S) andBool ((_ ; _):Stmt :/=K S)
              andBool (LCK ==K #none orBool LCK ==K PID) // check lock
-    [owise]
+    [owise] // should fix this e.g. to 199 because of atomic blocking
 
   // Sequence
   rule <pid> PID </pid> <lock> LCK </lock>
