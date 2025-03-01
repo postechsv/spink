@@ -25,10 +25,11 @@ module MINIMELA-SYNTAX
                      | Vref "!" Exprs // Send
                      | Vref "?" Exprs // Recv
                      | "skip"
-                     | "break"
-                     | "goto" Id
+
+  syntax Goto ::= "goto" Id | "break"
 
   syntax Stmt ::= BasicStmt
+                | Goto
                 | "atomic" "{" Stmt "}"
                 | "if" Optns "fi"
                 | "do" Optns "od"
@@ -47,7 +48,7 @@ module MINIMELA-SYNTAX
 
   syntax Exprs ::= List{Expr, ","}
 
-  syntax Optn ::= "::" Stmt
+  syntax Optn ::= "::" Seq
 
   syntax Optns ::= List{Optn, ""}
 
@@ -224,6 +225,7 @@ module GOTO
 
   syntax KItem ::= gotoCtx(Bool, K) // Bool indicates wherether K is in an atomic block
 
+  // goto
   rule <lock> _LCK => #if B #then PID #else #none #fi </lock>
        <pid> PID </pid> // acquire
        <name> P </name>
@@ -232,6 +234,10 @@ module GOTO
          <procName> P </procName>
          <gotoMap>... L |-> gotoCtx(B, K) ...</gotoMap>
     ...</proctype> 
+
+  // break
+  rule (break ~> do _ od) => .K
+  rule break ~> (KI:KItem => .K) requires do _ od :/=K KI
 endmodule
 
 
@@ -352,7 +358,7 @@ module GUARD // BASICSTMT
   rule isExec(_, _, _, _, _) => false [owise]
   rule isExec(E:Expr, ENV, STR, NET, PID)
     => {eval(purify(E, PID), ENV, STR, NET)}:>Bool ==K true
-       orBool {eval(purify(E, PID), ENV, STR, NET)}:>Int >Int 0 // Condition
+       // FIXME: orBool {eval(purify(E, PID), ENV, STR, NET)}:>Int >Int 0 // Condition
   rule isExec(_ = _, _, _, _, _) => true // Assign
   rule isExec(X [ E ] ! _, ENV, STR, NET, _)
     => eval(nfull(X [ E ]), ENV, STR, NET) ==K true // Buf Send
@@ -398,12 +404,15 @@ module CONTROL // CONTROL-DECOMPOSITION or CONTROL-EFFECT as opposed GUARD-EFFEC
   syntax Set ::= des(Bool, K) [function] // des(true, ...) means #rel is inserted appropriately
   rule des(true, BS:BasicStmt ~> K) => SetItem(@[ BS ~> K ])
   rule des(false, BS:BasicStmt ~> K) => des(true, BS ~> #rel ~> K)
-  rule des(B, (S ; S'):Seq ~> K) => des(B, S ~> S' ~> K)
+  rule des(B, (S ; S'):Seq ~> K) => des(B, S ~> S' ~> K) // FIXME
   rule des(true, atomic { S } ~> K) => des(true, S ~> K) // inner atomic
   rule des(false, atomic { S } ~> K) => des(true, S ~> #rel ~> K) // outermost atomic
   rule des(B, if (:: S) OL fi ~> K) => des(B, S ~> K) des(B, if OL fi ~> K)
   rule des(_, if .Optns fi ~> _) => .Set
-  rule des(B, goto L ~> K) => des(B, true ~> goto L ~> K)
+  rule des(B, S:Goto ~> K) => des(B, true ~> S ~> K)
+//  rule des(B, goto L ~> K) => des(B, true ~> goto L ~> K)
+  rule des(B, do OL od ~> K) =>  des(B, if OL fi ~> do OL od ~> K)
+//  rule des(B, break ~> K) => des(B, true ~> break ~> K)
   rule des(_, K) => K [owise]
 endmodule
 
@@ -413,16 +422,37 @@ module MINIMELA
   imports EXPRESSION
   imports CONTROL
   imports GUARD
+  imports GOTO
 
+  syntax Stmt ::= "stop"
+
+/* this does not work
   // Sequential Decomposition
   rule <pid> PID </pid> <lock> LCK </lock>
-       <k> (S1 ; S2):Seq => S1 ~> S2 ...</k> // FIXME: S2 = .Seq
+       <k> (S1:Stmt ; S2:Stmt ; S) => S1 ~> (S2 ; S):Seq ...</k>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+
+  rule <pid> PID </pid> <lock> LCK </lock>
+       <k> (S:Stmt ; .Seq) => S:Stmt ...</k>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+  // seems because in the rhs of the second rule,
+     S is implicitly transformed into S ; .Seq,
+     becase lhs is of type Seq
+*/
+
+ // Sequential Decomposition
+  rule <pid> PID </pid> <lock> LCK </lock>
+       <k> (S ; S'):Seq => S ~> S' ...</k>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+
+  rule <pid> PID </pid> <lock> LCK </lock>
+       <k> .Seq => .K ...</k>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
 
   // Control Decomposition
   rule <pid> PID </pid> <lock> LCK </lock>
        <k> S:Stmt => des(PID ==K LCK, S) ...</k>
-    requires (goto _ :/=K S) andBool ((_ ; _):Seq :/=K S)
+    requires (_:Goto :/=K S)
              andBool (LCK ==K #none orBool LCK ==K PID) // check lock
 
   // Basic Decomposition
