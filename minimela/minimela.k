@@ -42,7 +42,7 @@ module MINIMELA-SYNTAX
                 | Expr "<" Expr | Expr "<=" Expr | Expr ">" Expr | Expr ">=" Expr 
                 | Expr "&&" Expr | Expr "||" Expr | Expr "==" Expr | Expr "!=" Expr 
                 | full(Vref) | empty(Vref) | nfull(Vref) | nempty(Vref)
-                | Id "[" Expr "]" "?" "[" Exprs "]" // Recv Poll (only for buf chans)
+                | Vref "?" "[" Exprs "]" // Recv Poll (only for buf chans)
                 | "run" Id "(" Exprs ")"
 
   syntax Exprs ::= List{Expr, ","}
@@ -68,7 +68,9 @@ module BASIC
 
   syntax Value ::= Chan
 
-  syntax Chan ::= ch(Int) // ch_id as a value // the name chan is already reserved for typename
+  syntax Chan ::= ch(Int) | hs(Int) // ch_id as a value // the name chan is already reserved for typename
+  syntax Loc ::= loc(Int)
+
   syntax Queue ::= mq(Int, List) // capacity, list of messages
   syntax Msg ::= m(List) // list of values
                | "noMsg"
@@ -76,8 +78,9 @@ module BASIC
   syntax Lock ::= Int | "#none"
 
   syntax KItem ::= "null"
-                 | loc(Int)
                  | lval(Id, Int) // vref
+
+  syntax Ref ::= Vref | Chan | Loc
 endmodule
 
 module CONFIG
@@ -130,7 +133,7 @@ module EXPRESSION
   rule eval(X:Id, ENV, STR, NET) => eval(X[0], ENV, STR, NET) // desugar
   rule eval(X[EXP], ENV, STR, NET) => eval(X [ eval(EXP, ENV, STR, NET) ], ENV, STR, NET) [owise] // i.e. IEXP not Int
   rule eval(X[I:Int], (lval(X, I) |-> loc(L)) _ENV, (L |-> V) _STR, _NET) => V // loc
-  rule eval(X[I:Int], (lval(X, I) |-> ch(C)) _ENV, _STR, _NET) => ch(C) // ch
+  rule eval(X[I:Int], (lval(X, I) |-> C:Chan) _ENV, _STR, _NET) => C // ch
 
   // Arith & Logic Expressions
   rule eval(E1 == E2, ENV, STR, NET) => eval(E1, ENV, STR, NET) ==K eval(E2, ENV, STR, NET)
@@ -216,6 +219,22 @@ module ATOMICITY
 endmodule
 
 
+module GOTO
+  imports CONFIG
+
+  syntax KItem ::= gotoCtx(Bool, K) // Bool indicates wherether K is in an atomic block
+
+  rule <lock> _LCK => #if B #then PID #else #none #fi </lock>
+       <pid> PID </pid> // acquire
+       <name> P </name>
+       <k> (goto L ~> _) => K </k>
+       <proctype>...
+         <procName> P </procName>
+         <gotoMap>... L |-> gotoCtx(B, K) ...</gotoMap>
+    ...</proctype> 
+endmodule
+
+
 module ASSIGN
   imports CONFIG
   imports EXPRESSION
@@ -247,42 +266,40 @@ module CHANNEL
   imports EXPRESSION
   imports ASSIGN
 
-  syntax KItem ::= #send(Expr, Exprs)
+  syntax KItem ::= #send(Ref, Exprs)
                  | #sendMsg(Chan, Msg)
-                 | #recv(Expr, Exprs)
-                 | #recvMsg(Chan, Exprs, Msg)
+                 | #recv(Ref, Exprs)
+                 | #recvMsg(Exprs, Msg)
 
   /* Buffered Send */
-  // Evaluate Channel
-  rule <k>
-         #send(X [ E ], EL)
-         =>
-         #sendMsg({eval(X [ E ], ENV, STR, NET)}:>Chan, m(evalList(EL, ENV, STR, NET)))
-    ...</k>
+
+  // Identify Chan
+  rule <k> #send(X [ E ] => {eval(X [ E ], ENV, STR, NET)}:>Chan, _) ...</k>
        <env> ENV </env> <store> STR </store> <network> NET </network>
 
-  // Append Message
-  rule <k> #sendMsg(ch(I), MSG:Msg) ...</k>
+  // Make Msg
+  rule <k> #send(ch(I), EL) => #sendMsg(ch(I), m(evalList(EL, ENV, STR, NET)))...</k>
+       <env> ENV </env> <store> STR </store> <network> NET </network>
+
+  // Push Msg
+  rule <k> #sendMsg(ch(I), MSG) ...</k>
        <network>... I |-> mq(_, _LIST(.List => ListItem(MSG))) ...</network>
 
   /* Buffered Recv */ 
-  // Evaluate Channel
-  rule <k>
-         #recv(X [ E ], EL)
-         =>
-         #recvMsg({eval(X [ E ], ENV, STR, NET)}:>Chan, EL, noMsg)
-    ...</k>
+  // Identify Chan
+  rule <k> #recv(X [ E ] => {eval(X [ E ], ENV, STR, NET)}:>Chan, _) ...</k>
        <env> ENV </env> <store> STR </store> <network> NET </network>
 
   // Pop Msg
-  rule <k> #recvMsg(ch(I), _, noMsg => MSG) ...</k>
+  rule <k> #recv(ch(I), EL) => #recvMsg(EL, MSG) ...</k>
        <network>... I |-> mq(_, (ListItem(MSG) => .List) _LIST) ...</network>
 
   // Assign Msg
-  rule #recvMsg(_, .Exprs, _) => .K
-  rule #recvMsg(C, (V:Value , EL), m(ListItem(V) VL)) => #recvMsg(C, EL, m(VL))
-  rule #recvMsg(C, (X [ E ] , EL), m(ListItem(V) VL)) => #assign(X, E, V) ~> #recvMsg(C, EL, m(VL))
-  rule #recvMsg(C, (X:Id , EL), m(ListItem(V) VL)) => #assign(X, 0, V) ~> #recvMsg(C, EL, m(VL))
+  rule #recvMsg(.Exprs, _) => .K
+  rule #recvMsg((V:Value , EL), m(ListItem(V) VL)) => #recvMsg(EL, m(VL))
+  rule #recvMsg((X [ E ] , EL), m(ListItem(V) VL)) => #assign(X, E, V) ~> #recvMsg(EL, m(VL))
+  rule #recvMsg((X:Id , EL), m(ListItem(V) VL)) => #assign(X, 0, V) ~> #recvMsg(EL, m(VL))
+
 endmodule
 
 
@@ -307,7 +324,7 @@ module RUN
            <name> P </name>
            <k> S </k> // FIXME: param init
            <local> .Set </local>
-           <env> gEnv(ENV, IDS) </env> // FIXME: remove local variables
+           <env> gEnv(ENV, IDS) </env>
          </proc>)
     ...</procs>
 
@@ -386,6 +403,7 @@ module CONTROL // CONTROL-DECOMPOSITION or CONTROL-EFFECT as opposed GUARD-EFFEC
   rule des(B, if (:: S) OL fi ~> K) => des(B, S ~> K) des(B, if OL fi ~> K)
   rule des(_, if .Optns fi ~> _) => .Set
   rule des(B, goto L ~> K) => des(B, true ~> goto L ~> K)
+  rule des(_, K) => K [owise]
 endmodule
 
 
@@ -416,5 +434,33 @@ module MINIMELA
        <lock> LCK => PID </lock> // acquire
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
              andBool isExec(BS, ENV, STR, NET, PID') ==K true
+
+  /* Handshake */
+  syntax KItem ::= #toss(Lock) // generalizes #rel (i.e. #rel = #toss(#none))
+  rule <k> #toss(LCK) ...</k> <lock> _ => LCK </lock>
+
+  // @[K2] becase K2 might contain #rel; but what if goto is in the front
+  rule
+    <proc>...
+      <pid> PID1 </pid>
+      <k>
+        (SetItem(@[ X1 [ E1 ] ! EL1 ~> K1 ]) _) => des(true, K1)
+   ...</k>
+      <env> ENV1 </env>
+ ...</proc>
+    <proc>...
+      <pid> PID2 </pid>
+      <k>
+        (SetItem(@[ X2 [ E2 ] ? EL2 ~> K2 ]) _) =>
+        (#recvMsg(EL2, m(evalList(EL1, ENV, STR, NET))) ~> #toss(LCK) ~> des(true, K2))
+   ...</k>
+      <env> ENV2 </env>
+ ...</proc>
+    <lock> LCK => PID2 </lock>
+    <store> STR </store>
+    <network> NET </network>
+    requires (LCK ==K #none orBool LCK ==K PID1 orBool LCK ==K PID2)
+             andBool hs(_) :=K eval(X1 [ E1 ], ENV, STR, NET) // check if hs
+             andBool eval(X1 [ E1 ], ENV1, STR, NET) ==K eval(X2 [ E2 ], ENV2, STR, NET) // check ch_id
 
 endmodule
