@@ -243,20 +243,20 @@ module ASSIGN
   // Evaluate Index
   rule <k> #assign(_, E => {eval(E, ENV, STR, NET)}:>Int, _) ...</k>
        <env> ENV </env> <store> STR </store> <network> NET </network> 
-    requires _:Value :/=K E
+    requires _:Int :/=K E
 
   // Evaluate Expr
   rule <k> #assign(_, _:Int, E => eval(E, ENV, STR, NET)) ...</k>
-    <env> ENV </env> <store> STR </store> <network> NET </network> 
+       <env> ENV </env> <store> STR </store> <network> NET </network> 
     requires _:Value :/=K E
 
   // Ordinary Assignment
-  rule <k> #assign(X, I, V:Value) => .K ...</k>
+  rule <k> #assign(X, I:Int, V:Value) => .K ...</k>
        <env>... lval(X, I) |-> loc(L) ...</env>
        <store>... L |-> (_ => V) ...</store>
 
   // Channel Assignment
-  rule <k> #assign(X, I, V:Chan) => .K ...</k>
+  rule <k> #assign(X, I:Int, V:Chan) => .K ...</k>
        <env>... lval(X, I) |-> (_ => V) ...</env>
 endmodule
 
@@ -378,6 +378,7 @@ module GUARD // BASICSTMT
   rule effect(E1 == E2, PID)   => effect(E1, PID) ~> effect(E2, PID)
   rule effect(E1 != E2, PID)   => effect(E1, PID) ~> effect(E2, PID)
   // Basic Effects
+  rule effect(X = E, PID) => #assign(X, 0, purify(E, PID))
   rule effect(X [ E ] = E', PID) => effect(E', PID) ~> #assign(X, E, purify(E', PID))
   rule effect(X [ E ] ! EL, _) => #send(X [ E ], EL)
   rule effect(X [ E ] ? EL, _) => #recv(X [ E ], EL)
@@ -415,7 +416,7 @@ module MINIMELA
 
   // Sequential Decomposition
   rule <pid> PID </pid> <lock> LCK </lock>
-       <k> (S1 ; S2):Seq => S1 ~> S2 ...</k>
+       <k> (S1 ; S2):Seq => S1 ~> S2 ...</k> // FIXME: S2 = .Seq
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
 
   // Control Decomposition
@@ -462,5 +463,4 @@ module MINIMELA
     requires (LCK ==K #none orBool LCK ==K PID1 orBool LCK ==K PID2)
              andBool hs(_) :=K eval(X1 [ E1 ], ENV, STR, NET) // check if hs
              andBool eval(X1 [ E1 ], ENV1, STR, NET) ==K eval(X2 [ E2 ], ENV2, STR, NET) // check ch_id
-
 endmodule
