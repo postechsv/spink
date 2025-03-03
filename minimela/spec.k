@@ -15,7 +15,8 @@ endmodule
 module SPEC
   imports VERIFICATION
 
-  syntax Id ::= "$x" [token] | "$n" [token] | "$s" [token]
+  syntax Id ::= "$x" [token] | "$y" [token]
+              | "$n" [token] | "$s" [token]
 
   claim [summation]:
         <procs>
@@ -58,4 +59,54 @@ module SPEC
         <store>
           (0 |-> (_ => 42))
         </store>
+
+  claim [send]:
+        <procs>
+          <proc>...
+            <pid> 1 </pid>
+            <k> $x[0] ! 42 => .K </k>
+            <env>
+              (lval($x,0) |-> ch(C))
+            </env>
+       ...</proc>
+        </procs>
+        <network>
+          (C |-> mq(10, .List => ListItem(m(ListItem(42)))))
+        </network>
+        <lock> #none </lock>
+
+  claim [recv-ok]:
+        <procs>
+          <proc>...
+            <pid> 1 </pid>
+            <k> $x[0] ? $y => .K </k>
+            <env>
+              (lval($y,0) |-> loc(L))
+              (lval($x,0) |-> ch(C))
+            </env>
+       ...</proc>
+        </procs>
+        <store>
+          (L |-> (_ => 42))
+        </store>
+        <network>
+          (C |-> mq(10, ListItem(m(ListItem(42))) => .List))
+        </network>
+        <lock> #none </lock>
+
+  claim [recv-match]:
+        <procs>
+          <proc>...
+            <pid> 1 </pid>
+            <k> $x[0] ? 42 => .K </k>
+            <env>
+              (lval($x,0) |-> ch(C))
+            </env>
+       ...</proc>
+        </procs>
+        <network>
+          (C |-> mq(10, ListItem(m(ListItem(42))) => .List))
+        </network>
+        <lock> #none </lock>
+
 endmodule 

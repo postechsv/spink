@@ -288,7 +288,7 @@ module CHANNEL
        <env> ENV </env> <store> STR </store> <network> NET </network>
 
   // Push Msg
-  rule <k> #sendMsg(ch(I), MSG) ...</k>
+  rule <k> #sendMsg(ch(I), MSG) => .K ...</k>
        <network>... I |-> mq(_, _LIST(.List => ListItem(MSG))) ...</network>
 
   /* Buffered Recv */ 
@@ -442,7 +442,7 @@ module MINIMELA
 
  // Sequential Decomposition
   rule <pid> PID </pid> <lock> LCK </lock>
-       <k> (S ; S'):Seq => S ~> S' ...</k>
+       <k> (S:Stmt ; S':Seq) => (S ~> S') ...</k>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
 
   rule <pid> PID </pid> <lock> LCK </lock>
