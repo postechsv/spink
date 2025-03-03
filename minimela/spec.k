@@ -18,6 +18,7 @@ module SPEC
   syntax Id ::= "$x" [token] | "$y" [token]
               | "$n" [token] | "$s" [token]
 
+/*
   claim [summation]:
         <procs>
           <proc>...
@@ -108,5 +109,33 @@ module SPEC
           (C |-> mq(10, ListItem(m(ListItem(42))) => .List))
         </network>
         <lock> #none </lock>
+*/
+
+  claim [sendrecv]:
+        <procs>
+          <proc>...
+            <pid> 1 </pid>
+            <k> $x[0] ! 42 => .K </k>
+            <env>
+              (lval($x,0) |-> ch(C))
+            </env>
+       ...</proc>
+          <proc>...
+            <pid> 2 </pid>
+            <k> $x[0] ? $y => .K </k>
+            <env>
+              (lval($y,0) |-> loc(L))
+              (lval($x,0) |-> ch(C))
+            </env>
+       ...</proc>
+        </procs>
+        <store>
+          (L |-> (_ => 42))
+        </store>
+        <network>
+          (C |-> mq(SIZE, .List))
+        </network>
+        <lock> #none </lock>
+  requires SIZE >Int 0
 
 endmodule 

@@ -168,7 +168,7 @@ module EXPRESSION
  
   rule eval(C [ I:Int ] ? [ EXPL ], (lval(C, I) |-> ch(J)) _ENV, _STR, (J |-> mq(_, ListItem(m(VL)) _Q)) _NET)
     => true requires matchMsg(EXPL, VL)
-//  rule eval(_ [ _:Int ] ? _, _ENV, _STR, _NET) => false [owise]
+  rule eval(_ [ _:Int ] ? [ _ ], _, _, _) => false [owise]
 
 
   // evalList - FIXME eval with brackets e.g. c ! (1 + 1) , (1 + 2) doesn't work
@@ -384,9 +384,11 @@ module GUARD // BASICSTMT
   rule effect(E1 == E2, PID)   => effect(E1, PID) ~> effect(E2, PID)
   rule effect(E1 != E2, PID)   => effect(E1, PID) ~> effect(E2, PID)
   // Basic Effects
-  rule effect(X = E, PID) => #assign(X, 0, purify(E, PID))
+  rule effect(X = E, PID) => #assign(X, 0, purify(E, PID)) // desugar
   rule effect(X [ E ] = E', PID) => effect(E', PID) ~> #assign(X, E, purify(E', PID))
+  rule effect(X ! EL, _) => #send(X [ 0 ], EL) // desugar
   rule effect(X [ E ] ! EL, _) => #send(X [ E ], EL)
+  rule effect(X ? EL, _) => #recv(X [ 0 ], EL) // desugar
   rule effect(X [ E ] ? EL, _) => #recv(X [ E ], EL)
 endmodule
 
@@ -440,7 +442,7 @@ module MINIMELA
      becase lhs is of type Seq
 */
 
- // Sequential Decomposition
+  // Sequential Decomposition
   rule <pid> PID </pid> <lock> LCK </lock>
        <k> (S:Stmt ; S':Seq) => (S ~> S') ...</k>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
@@ -483,7 +485,7 @@ module MINIMELA
       <pid> PID2 </pid>
       <k>
         (SetItem(@[ X2 [ E2 ] ? EL2 ~> K2 ]) _) =>
-        (#recvMsg(EL2, m(evalList(EL1, ENV, STR, NET))) ~> #toss(LCK) ~> des(true, K2))
+        (#recvMsg(EL2, m(evalList(EL1, ENV1, STR, NET))) ~> #toss(LCK) ~> des(true, K2))
    ...</k>
       <env> ENV2 </env>
  ...</proc>
@@ -491,6 +493,6 @@ module MINIMELA
     <store> STR </store>
     <network> NET </network>
     requires (LCK ==K #none orBool LCK ==K PID1 orBool LCK ==K PID2)
-             andBool hs(_) :=K eval(X1 [ E1 ], ENV, STR, NET) // check if hs
+             andBool hs(_) :=K eval(X1 [ E1 ], ENV1, STR, NET) // check if hs
              andBool eval(X1 [ E1 ], ENV1, STR, NET) ==K eval(X2 [ E2 ], ENV2, STR, NET) // check ch_id
 endmodule
