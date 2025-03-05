@@ -14,7 +14,7 @@ module PROMELA-SYNTAX
 
   syntax Decl ::= Type Ivar
 
-  syntax Decls ::= List{Decl, ";"}
+  syntax Decls ::= List{Decl, ";"} // this often causes ambiguity w/ Seq
 
   syntax Type ::= "int" | "bool" | "chan"
 
@@ -25,12 +25,16 @@ module PROMELA-SYNTAX
                      | Vref "!" Exprs // Send
                      | Vref "?" Exprs // Recv
                      | "skip"
-                     | "break"
-                     | "goto" Id
 
-  syntax Stmt ::= BasicStmt | Stmt ";" | Stmt ";" Stmt [left, prefer]
+  syntax Goto ::= "goto" Id | "break"
+
+  syntax Stmt ::= BasicStmt
+                | Goto
                 | "atomic" "{" Stmt "}"
-                | "if" Optns "fi" | "do" Optns "od"
+                | "if" Optns "fi"
+                | "do" Optns "od"
+
+  syntax Seq ::= List{Stmt, ";"}
 
   syntax Expr ::= Const | Vref
                 | "(" Expr ")" [bracket]
@@ -39,12 +43,12 @@ module PROMELA-SYNTAX
                 | Expr "<" Expr | Expr "<=" Expr | Expr ">" Expr | Expr ">=" Expr 
                 | Expr "&&" Expr | Expr "||" Expr | Expr "==" Expr | Expr "!=" Expr 
                 | full(Vref) | empty(Vref) | nfull(Vref) | nempty(Vref)
-                | Id "[" Expr "]" "??" Exprs // Recv Poll (only for buf chans)
+                | Vref "?" "[" Exprs "]" // Recv Poll (only for buf chans)
                 | "run" Id "(" Exprs ")"
 
   syntax Exprs ::= List{Expr, ","}
 
-  syntax Optn ::= "::" Stmt
+  syntax Optn ::= "::" Seq
 
   syntax Optns ::= List{Optn, ""}
 
@@ -57,38 +61,59 @@ module PROMELA-SYNTAX
   syntax Const ::= Value
 
   syntax Value ::= Int | Bool
-
-  syntax Id ::= "#Configurator" [token]
-
 endmodule
 
-module PROMELA-CONFIG
+module BASIC
   imports PROMELA-SYNTAX
   imports DOMAINS
 
+  syntax Value ::= Chan
+
+  syntax Chan ::= ch(Int) | hs(Int) // ch_id as a value // the name chan is already reserved for typename
+  syntax Loc ::= loc(Int)
+
+  syntax Queue ::= mq(Int, List) // capacity, list of messages
+  syntax Msg ::= m(List) // list of values
+               | "noMsg"
+
   syntax Lock ::= Int | "#none"
 
+  syntax KItem ::= "null"
+                 | lval(Id, Int) // vref
+
+  syntax Ref ::= Vref | Chan | Loc
+endmodule
+
+module CONFIG
+  imports BASIC
+  imports SET
+
+  syntax Id ::= "$procName" [token]
+
   configuration <T color="yellow">
+                  /* PROCTYPES */
                   <proctypes>
                     <proctype multiplicity="*" type="Map" initial="">
-                      <procName> #Configurator </procName>
+                      <procName> $procName </procName>
                       <procParams> .Decls </procParams>
                       <procBody> skip:Stmt </procBody> // skip:BasicStmt doesn't allow Stmt's in general
                       <gotoMap> .Map </gotoMap>
                     </proctype>
                   </proctypes>
 
-                  <procs> // active procs
+                  /* PROCS */
+                  <procs>
                     <proc multiplicity="*" type="Map" color="orange" initial="">
                       <pid> -1 </pid>
-                      <name> #Configurator </name>
+                      <name> $procName </name>
                       <k color="green"> $PGM:Spec </k>
-                      <env color="LightSalmon"> .Map </env>
+                      <local color="orange"> .Set </local>
+                      <env color="orange"> .Map </env>
                     </proc>
                   </procs> 
 
                   <store color="Salmon"> .Map </store>
-                  <bfChan color="Salmon"> .Map </bfChan>
+                  <network color="Salmon"> .Map </network>
 
                   <lock> #none </lock>
 
@@ -96,80 +121,61 @@ module PROMELA-CONFIG
                   <nextPid> 0 </nextPid>
 
                 </T>
-
 endmodule
 
-module PROMELA
-  imports PROMELA-CONFIG
+module EXPRESSION
+  imports BASIC
 
-  /****************
-  BASIC DEFINITIONS
-  *****************/
-
-
-  syntax KItem ::= "null" | loc(Int) | lval(Id, Int)
-                 | choice(Bool, K) // Acquiring Choice
-                 //| guard(BasicStmt)
-                 | "#rel"
-                 | #assign(KItem, KItem)
-                 | #expr(Expr)
-                 | #run(Id, Exprs)
-
-  // Chan
-  syntax Msg ::= msg(List) | "noMsg"
-  syntax Queue ::= queue(Int, List) // queue size , list of Msg's
-  syntax Port ::= bfPort(Int) | rvPort(Int)
-  syntax Value ::= Port
-  syntax KItem ::= #send(KItem, KItem) | #recv(KItem, KItem)
-
-
-  /****************
-  FUNCTION DEFINITIONS
-  *****************/
-
-  // Eval - eval : Expr, Env, Str, Bfc
+  // Eval - eval : Exp, Env, Str, Net
   syntax Value ::= eval(Expr, Map, Map, Map) [function]
 
+  // Lookup Expressions
   rule eval(V:Value, _, _, _) => V
+  rule eval(X:Id, ENV, STR, NET) => eval(X[0], ENV, STR, NET) // desugar
+  rule eval(X[EXP], ENV, STR, NET) => eval(X [ eval(EXP, ENV, STR, NET) ], ENV, STR, NET) [owise] // i.e. IEXP not Int
+  rule eval(X[I:Int], (lval(X, I) |-> loc(L)) _ENV, (L |-> V) _STR, _NET) => V // loc
+  rule eval(X[I:Int], (lval(X, I) |-> C:Chan) _ENV, _STR, _NET) => C // ch
 
-  rule eval(X:Id, ENV, STR, BFC) => eval(X[0], ENV, STR, BFC) // desugar
-  rule eval(X[IEXP], ENV, STR, BFC) => eval(X [ eval(IEXP, ENV, STR, BFC) ], ENV, STR, BFC) [owise] // i.e. IEXP not Int
+  // Arith & Logic Expressions
+  rule eval(E1 == E2, ENV, STR, NET) => eval(E1, ENV, STR, NET) ==K eval(E2, ENV, STR, NET)
+  rule eval(E1 != E2, ENV, STR, NET) => eval(E1, ENV, STR, NET) =/=K eval(E2, ENV, STR, NET)
+  rule eval(E1 + E2, ENV, STR, NET) => {eval(E1, ENV, STR, NET)}:>Int +Int {eval(E2, ENV, STR, NET)}:>Int
+  rule eval(E1 - E2, ENV, STR, NET) => {eval(E1, ENV, STR, NET)}:>Int -Int {eval(E2, ENV, STR, NET)}:>Int
+  rule eval(E1 * E2, ENV, STR, NET) => {eval(E1, ENV, STR, NET)}:>Int *Int {eval(E2, ENV, STR, NET)}:>Int
+  rule eval(E1 / E2, ENV, STR, NET) => {eval(E1, ENV, STR, NET)}:>Int /Int {eval(E2, ENV, STR, NET)}:>Int
+  rule eval(E1 && E2, ENV, STR, NET) => {eval(E1, ENV, STR, NET)}:>Bool andBool {eval(E2, ENV, STR, NET)}:>Bool
+  rule eval(E1 || E2, ENV, STR, NET) => {eval(E1, ENV, STR, NET)}:>Bool orBool {eval(E2, ENV, STR, NET)}:>Bool
+  rule eval(E1 < E2, ENV, STR, NET) => {eval(E1, ENV, STR, NET)}:>Int <Int {eval(E2, ENV, STR, NET)}:>Int
+  rule eval(E1 <= E2, ENV, STR, NET) => {eval(E1, ENV, STR, NET)}:>Int <=Int {eval(E2, ENV, STR, NET)}:>Int
+  rule eval(E1 > E2, ENV, STR, NET) => {eval(E1, ENV, STR, NET)}:>Int >Int {eval(E2, ENV, STR, NET)}:>Int
+  rule eval(E1 >= E2, ENV, STR, NET) => {eval(E1, ENV, STR, NET)}:>Int >=Int {eval(E2, ENV, STR, NET)}:>Int
 
-  // Look-Up
-  rule eval(X[I:Int], (lval(X, I) |-> loc(L)) _ENV, (L |-> V) _STR, _BFC) => V // loc
-  rule eval(X[I:Int], (lval(X, I) |-> bfPort(J)) _ENV, _STR, _BFC) => bfPort(J) // buf chan
-  rule eval(X[I:Int], (lval(X, I) |-> rvPort(J)) _ENV, _STR, _BFC) => rvPort(J) // rv chan
+  // Poll Expressions
+  rule eval(full(X [ EXP ]), ENV, STR, NET) => eval(full(X [ eval(EXP, ENV, STR, NET) ]), ENV, STR, NET) requires _:Int :/=K EXP
+  rule eval(empty(X [ EXP ]), ENV, STR, NET) => eval(empty(X [ eval(EXP, ENV, STR, NET) ]), ENV, STR, NET) requires _:Int :/=K EXP
+  rule eval(nfull(X [ EXP ]), ENV, STR, NET) => eval(nfull(X [ eval(EXP, ENV, STR, NET) ]), ENV, STR, NET) requires _:Int :/=K EXP
+  rule eval(nempty(X [ EXP ]), ENV, STR, NET) => eval(nempty(X [ eval(EXP, ENV, STR, NET) ]), ENV, STR, NET) requires _:Int :/=K EXP
 
-  // Arith Expr
-  rule eval(E1 == E2, ENV, STR, BFC) => eval(E1, ENV, STR, BFC) ==K eval(E2, ENV, STR, BFC)
+  rule eval(full(X [ I:Int ]), (lval(X, I) |-> ch(C)) _ENV, _STR, (C |-> mq(S, Q)) _NET) => size(Q) ==Int S
+  rule eval(empty(X [ I:Int ]), (lval(X, I) |-> ch(C)) _ENV, _STR, (C |-> mq(_S, Q)) _NET) => size(Q) ==Int 0
+  rule eval(nfull(X [ I:Int ]), (lval(X, I) |-> ch(C)) _ENV, _STR, (C |-> mq(S, Q)) _NET) => size(Q) <Int S
+  rule eval(nempty(X [ I:Int ]), (lval(X, I) |-> ch(C)) _ENV, _STR, (C |-> mq(_S, Q)) _NET) => size(Q) >Int 0
 
-  rule eval(E1 + E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int +Int {eval(E2, ENV, STR, BFC)}:>Int
-  rule eval(E1 - E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int -Int {eval(E2, ENV, STR, BFC)}:>Int
-  rule eval(E1 * E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int *Int {eval(E2, ENV, STR, BFC)}:>Int
-  rule eval(E1 / E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int /Int {eval(E2, ENV, STR, BFC)}:>Int
-
-  rule eval(E1 && E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Bool andBool {eval(E2, ENV, STR, BFC)}:>Bool
-  rule eval(E1 || E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Bool orBool {eval(E2, ENV, STR, BFC)}:>Bool
+  rule eval(full(_ [ _:Int ]), _ENV, _STR, _NET) => false [owise]
+  rule eval(empty(_ [ _:Int ]), _ENV, _STR, _NET) => false [owise]
+  rule eval(nfull(_ [ _:Int ]), _ENV, _STR, _NET) => false [owise]
+  rule eval(nempty(_ [ _:Int ]), _ENV, _STR, _NET) => false [owise]
  
-  rule eval(E1 < E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int <Int {eval(E2, ENV, STR, BFC)}:>Int
-  rule eval(E1 <= E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int <=Int {eval(E2, ENV, STR, BFC)}:>Int
-  rule eval(E1 > E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int >Int {eval(E2, ENV, STR, BFC)}:>Int
-  rule eval(E1 >= E2, ENV, STR, BFC) => {eval(E1, ENV, STR, BFC)}:>Int >=Int {eval(E2, ENV, STR, BFC)}:>Int
-
-  // Chan Poll - TODO
-  rule eval(nfull(_), _ENV, _STR, _BFC) => true
-
-  // Poll
-  rule eval(C [ I:Int ] ?? EXPL, (lval(C, I) |-> bfPort(J)) _ENV, _STR, (J |-> queue(_, ListItem(msg(VL)) _Q)) _BFC)
+  rule eval(C [ I:Int ] ? [ EXPL ], (lval(C, I) |-> ch(J)) _ENV, _STR, (J |-> mq(_, ListItem(m(VL)) _Q)) _NET)
     => true requires matchMsg(EXPL, VL)
-  rule eval(_ [ _:Int ] ?? _, _ENV, _STR, _BFC) => false [owise]
+  rule eval(_ [ _:Int ] ? [ _ ], _, _, _) => false [owise]
 
 
   // evalList - FIXME eval with brackets e.g. c ! (1 + 1) , (1 + 2) doesn't work
-  //rule eval(( E:Expr ), ENV, STR, BFC) => eval(E, ENV, STR, BFC)
+  //rule eval(( E:Expr ), ENV, STR, NET) => eval(E, ENV, STR, NET)
   syntax List ::= evalList(Exprs, Map, Map, Map) [function]
-  rule evalList((E , E' , EL), ENV, STR, BFC) => ListItem(eval(E, ENV, STR, BFC)) evalList((E', EL), ENV, STR, BFC)
-  rule evalList((E , .Exprs), ENV, STR, BFC) => ListItem(eval(E, ENV, STR, BFC))
+  rule evalList((E , E' , EL), ENV, STR, NET) => ListItem(eval(E, ENV, STR, NET)) evalList((E', EL), ENV, STR, NET)
+  rule evalList((E , .Exprs), ENV, STR, NET) => ListItem(eval(E, ENV, STR, NET))
 
   // constraint checking function for recv
   syntax Bool ::= matchMsg(Exprs, List) [function] // pattern match EXPL := VL where MSG = msg(VL) to check recv constraints
@@ -177,33 +183,6 @@ module PROMELA
   rule matchMsg((V:Value, .Exprs), ListItem(V)) => true
   rule matchMsg((_:Vref, .Exprs), ListItem(_)) => true
   rule matchMsg(_, _) => false [owise]
-
-  // Unfold basic statements
-/*
-  syntax K ::= unfold(BasicStmt) [function]
-  rule unfold(S) => S [owise]
-  rule unfold(E:Expr) => #expr(E) ~> effect(E)
-  rule unfold((X [ IE ] = E):BasicStmt) => #assign(X [ IE ], E) ~> effect(IE) ~> effect(E)
-*/
-
-  // extract the effect from expr
-  syntax K ::= effect(Expr) [function]
-  rule effect(run X ( EL )) => #run(X, EL)
-  rule effect(_:Value) => .K
-  rule effect(_:Id) => .K
-  rule effect(_[IE]) => effect(IE)
-  rule effect(E1 + E2) => effect(E1) ~> effect(E2)
-  rule effect(E1 - E2) => effect(E1) ~> effect(E2)
-  rule effect(E1 * E2) => effect(E1) ~> effect(E2)
-  rule effect(E1 / E2) => effect(E1) ~> effect(E2)
-  rule effect(E1 && E2) => effect(E1) ~> effect(E2)
-  rule effect(E1 || E2) => effect(E1) ~> effect(E2)
-  rule effect(E1 < E2) => effect(E1) ~> effect(E2)
-  rule effect(E1 <= E2) => effect(E1) ~> effect(E2)
-  rule effect(E1 > E2) => effect(E1) ~> effect(E2)
-  rule effect(E1 >= E2) => effect(E1) ~> effect(E2)
-  rule effect(E1 == E2) => effect(E1) ~> effect(E2)
-  rule effect(E1 != E2) => effect(E1) ~> effect(E2)
 
   // Purify - eliminate run operators in expr, given nextPid
   // Assume Expr can only cantain at most 1 run op (according to the manual)
@@ -224,240 +203,310 @@ module PROMELA
   rule purify(E1 >= E2, PID) => purify(E1, PID) >= purify(E2, PID)
   rule purify(E1 == E2, PID) => purify(E1, PID) == purify(E2, PID)
   rule purify(E1 != E2, PID) => purify(E1, PID) != purify(E2, PID)
+endmodule
 
 
-  // Stop for debug
-  syntax Stmt ::= "stop"
+module ATOMICITY
+  imports CONFIG
 
-  // Done
-//  rule <k> (SetItem ( choice ( _ , .K ) ) => .Set) ...</k>
+  syntax KItem ::= "#rel"
 
+  // Release (Controlled)
+  rule <k> #rel => .K ...</k> <pid> PID </pid>
+       <lock> PID => #none </lock> // acquire
 
-  rule <pid> PID </pid> <lock> LCK </lock>
-       <k> (.Set:K => .K) ...</k>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-
-  // Lift & Decompose
-  rule <pid> PID </pid> <lock> LCK </lock>
-       <k> S:Stmt => flatten(SetItem(choice(PID ==K LCK, S))) ...</k>
-    requires (goto _ :/=K S) andBool ((_ ; _):Stmt :/=K S)
-             andBool (LCK ==K #none orBool LCK ==K PID) // check lock
-    [owise] // should fix this e.g. to 199 because of atomic blocking
-
-  // Sequence
-  rule <pid> PID </pid> <lock> LCK </lock>
-       <k> (S1 ; S2):Stmt => S1 ~> S2 ...</k>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-
-  /*******************************************************
-      Flattening Rules 
-  *******************************************************/
-
-  syntax Set ::= flatten(Set) [function]
-
-  // Decompose
-  rule flatten(SetItem(C) SetItem(C') CS) => flatten(SetItem(C)) flatten(SetItem(C') CS)
-
-  // Default
-  rule flatten(CS:Set) => CS [owise]
-
-  // Guard - protect (guarantee atomicity for multi-step flat stmts)
-  // Expr, Assign, Send, Recv (multi-step stmts)
-  rule flatten(SetItem(choice(false, S:BasicStmt ~> K)))
-    => flatten(SetItem(choice(false, atomic { S } ~> K)))
-   // requires S is not goto or break // these should be preceded by skip(true) via preprocessing
-
-  // Guard - already protected
-  rule flatten(SetItem(choice(true, S:BasicStmt ~> K)))
-    => SetItem(choice(true, S ~> K)) // this is the generic normal form
-    //=> SetItem(choice(true, unfold(S) ~> K)) // this is the generic normal form
-
-  // Sequence
-  rule flatten(SetItem(choice(A, (S1 ; S2):Stmt ~> K)))
-    => flatten(SetItem(choice(A, S1 ~> S2 ~> K)))
-
-  // Select - decompose
-  rule flatten(SetItem(choice(A, if (:: S) OPTL fi ~> K)))
-    => flatten(SetItem(choice(A, S ~> K))) flatten(SetItem(choice(A, if OPTL fi ~> K)))
-
-  // Select - empty
-  rule flatten(SetItem(choice(_, if .Optns fi ~> _)))
-    => .Set
-
-  // Loop
-  rule flatten(SetItem(choice(A, do (:: S) OPTL od ~> K)))
-    => flatten(SetItem(choice(A, if (:: S) OPTL fi ~> do (:: S) OPTL od ~> K)))
-
-  // Atomic - fresh
-  rule flatten(SetItem(choice(false, atomic { S } ~> K)))
-    => flatten(SetItem(choice(true, S ~> #rel ~> K)))
-
-  // Atomic - redundant (either locked or #rel inserted)
-  rule flatten(SetItem(choice(true, atomic { S } ~> K)))
-    => flatten(SetItem(choice(true, S ~> K)))
-
-  /*******************************************************
-      Expr
-  *******************************************************/
-  // Expr - Guard
-  rule <lock> LCK => PID </lock>
-       <pid> PID </pid> // acquire
-       <k>
-         ((SetItem(choice(true, EXP:Expr ~> BK)) _:Set) => .Set) // choose
-       ~> (.K => (effect(EXP) ~> BK))
-    ...</k>
-       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan> <nextPid> NP </nextPid>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-             andBool eval(purify(EXP, NP), ENV, STR, BFC) ==K true
-             // andBool numRuns(EXP) <= 255
-
-  /*******************************************************
-     Assign 
-  *******************************************************/
-  // Assign - Guard
-  rule <lock> LCK => PID </lock>
-       <pid> PID </pid> // acquire
-       <k>
-         ((SetItem(choice(true, (X [ IE ] = EXP):Stmt ~> BK)) _:Set) => .Set) // choose
-       ~> (.K => (#assign(X [ IE ], EXP) ~> BK))
-    ...</k>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-             // andBool numRuns(IE) + numRuns(EXP) <= 255
-
-  // Assign - eval index with side-effects
-  rule <k> (.K => effect(IE)) ~> #assign(X [ IE ] => lval(X, {eval(purify(IE ,NP), ENV, STR, BFC)}:>Int), _) ...</k>
-       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan> <nextPid> NP </nextPid>
-
-  // Assign - eval expr with side-effects
-  rule <k> (.K => effect(EXP)) ~> #assign(lval(_,_), EXP => eval(purify(EXP, NP), ENV, STR, BFC)) ...</k>
-       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan> <nextPid> NP </nextPid>
-    requires _:Value :/=K EXP
-
-  // Assign-a) non-channel assignment
-  rule <k> #assign(lval(X, I), V:Value) => .K ...</k>
-       <env>... lval(X, I) |-> loc(L) ...</env>
-       <store>... L |-> (_ => V) ...</store>
-
-  // Assign-b) channel assignment
-  rule <k> #assign(lval(X, I), V:Port) => .K ...</k>
-       <env>... lval(X, I) |-> (_:Port => V) ...</env>
-
-  /*******************************************************
-     Channel 
-  *******************************************************/
-
-  // Buffered Send
-  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
-       <k>
-         ((SetItem(choice(true, C [ IE ] ! EXPL ~> BK)) _:Set) => .Set) // choose
-         ~> (.K => (effect(IE) ~> #send(eval(C [ purify(IE, NP) ], ENV, STR, BFC), EXPL) ~> BK))
-    ...</k>
-       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan> <nextPid> NP </nextPid>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-             andBool bfPort(_) :=K eval(C [ purify(IE, NP) ], ENV, STR, BFC) // check port type
-             andBool eval(nfull(C [ purify(IE, NP) ]), ENV, STR, BFC) ==K true // buf send poll
-
-  // 2) make msg
-  rule <k> #send(bfPort(_), EXPL:Exprs => msg(evalList(EXPL, ENV, STR, BFC))) ...</k>
-       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan>
-
-  // 3) push msg
-  rule <k> #send(bfPort(J), MSG:Msg) => .K ...</k>
-       <bfChan>... J |-> queue(_SIZE, _LIST (.List => ListItem(MSG))) ...</bfChan>
-
-  // Buffered Recv
-  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
-       <k>
-         ((SetItem(choice(true, C [ IE ] ? EXPL ~> BK)) _:Set) => .Set) // choose
-         ~> (.K => (effect(IE) ~> #recv(eval(C [ purify(IE, NP) ], ENV, STR, BFC), EXPL) ~> BK))
-    ...</k>
-       <env> ENV </env> <store> STR </store> <bfChan> BFC </bfChan> <nextPid> NP </nextPid>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-             andBool bfPort(_) :=K eval(C [ purify(IE, NP) ], ENV, STR, BFC) // check port type
-             andBool eval(C [ purify(IE, NP) ] ?? EXPL, ENV, STR, BFC) ==K true // buf recv poll
-
-  // Recv - 2) pop msg
-   rule <k> #recv(bfPort(J), EXPL) => #assignMsg(EXPL, VL) ...</k>
-        <bfChan>... J |-> queue(_SIZE, (ListItem(msg(VL)) => .List) _LIST) ...</bfChan>
-
-  // Recv - 3) assign msg
-  syntax KItem ::= #assignMsg(Exprs, List)
-  rule <k> #assignMsg((E , E' , EL), ListItem(V) VL)
-           => (#assignMsg(E , ListItem(V)) ~> #assignMsg((E' , EL), VL))
-    ...</k>
-  rule <k> #assignMsg((V:Value , .Exprs), ListItem(V)) => .K ...</k>
-  rule <k> #assignMsg((X:Id , .Exprs), ListItem(V)) => #assign(X [ 0 ], V) ...</k>
-  rule <k> #assignMsg((X [ IE ] , .Exprs), ListItem(V)) => #assign(X [ IE ], V) ...</k>
-
-  // TODO: Rendez-Vous
-  // 1) check rendezvous - TODO: atomic effect (seems recv takes the lock)
-  // TODO atomicity pass: search 'global atomic chain of executions' in https://spinroot.com/spin/Man/atomic.html
-/*
-  rule
-    <proc>...
-      <pid> SID </pid>
-      <k>
-        ((SetItem(choice(true,  (SC [ SIE ] ! SEL ~> SBK))) _:Set) => .Set)
-        ~> (.K => SBK)
-   ...</k>
-      <env> ENV </env>
- ...</proc>
-    <proc>...
-      <pid> RID </pid>
-      <k>
-        ((SetItem(choice(true, (RC [ RIE ] ? REL ~> RBK))) _:Set) => .Set)
-        ~> (.K => #assignMsg(REL, evalList(SEL, ENV, STR, BFC)))
-   ...</k>
-      <env> ENV' </env>
- ...</proc>
-    <lock> LCK </lock>
-    <store> STR </store> <bfChan> BFC </bfChan>
-    requires (LCK ==K #none orBool LCK ==K SID orBool LCK ==K RID)
-             andBool rvPort(_) :=K eval(C [ IEXP ], ENV, STR, BFC) // check port type
-             andBool eval(C [ IEXP ], ENV, STR, BFC) ==K eval(C' [ IEXP' ], ENV', STR, BFC) // check port id
-*/
+  // Loose (Uncontrolled)
+  rule <lock> _:Int => #none </lock> [owise]
+endmodule
 
 
-  /*******************************************************
-      Atomic 
-  *******************************************************/
+module GOTO
+  imports CONFIG
 
-  rule <lock> PID => #none </lock> <pid> PID </pid> // acquire
-       <k> #rel => .K ...</k>
+  syntax KItem ::= gotoCtx(Bool, K) // Bool indicates wherether K is in an atomic block
 
-  /*******************************************************
-      Loop
-  *******************************************************/
-  // break
-/*
-  syntax KItem ::= "#break"
-
-  rule <lock> LCK => PID </lock> <pid> PID </pid> // acquire
-       <k>
-         ((SetItem(choice(true, break ~> BK)) _:Set) => .Set) // choose
-       ~> (.K => (#break ~> BK))
-    ...</k>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-*/
-  /*******************************************************
-      Goto
-  *******************************************************/
-
+  // goto
   rule <lock> _LCK => #if B #then PID #else #none #fi </lock>
        <pid> PID </pid> // acquire
        <name> P </name>
        <k> (goto L ~> _) => K </k>
        <proctype>...
          <procName> P </procName>
-         <gotoMap>... L |-> choice(B, K) ...</gotoMap> // TODO rename choice as e.g. K w/ atomic ctx
+         <gotoMap>... L |-> gotoCtx(B, K) ...</gotoMap>
     ...</proctype> 
 
-  /*******************************************************
-        BASIC ACTIONS (BasicStmt)
-  *******************************************************/
-
-//  rule (X:Id = V):Stmt => (X [ 0 ] = V):Stmt // desugar
-
+  // break - these rule only make sense if atomicity ctx is not altered
+  rule (break ~> do _ od) => .K
+  rule break ~> (KI:KItem => .K) requires do _ od :/=K KI
+endmodule
 
 
+module ASSIGN
+  imports CONFIG
+  imports EXPRESSION
+  syntax KItem ::= #assign(Id, Expr, Expr)
+
+  // Evaluate Index
+  rule <k> #assign(_, E => {eval(E, ENV, STR, NET)}:>Int, _) ...</k>
+       <env> ENV </env> <store> STR </store> <network> NET </network> 
+    requires _:Int :/=K E
+
+  // Evaluate Expr
+  rule <k> #assign(_, _:Int, E => eval(E, ENV, STR, NET)) ...</k>
+       <env> ENV </env> <store> STR </store> <network> NET </network> 
+    requires _:Value :/=K E
+
+  // Ordinary Assignment
+  rule <k> #assign(X, I:Int, V:Value) => .K ...</k>
+       <env>... lval(X, I) |-> loc(L) ...</env>
+       <store>... L |-> (_ => V) ...</store>
+
+  // Channel Assignment
+  rule <k> #assign(X, I:Int, V:Chan) => .K ...</k>
+       <env>... lval(X, I) |-> (_ => V) ...</env>
+endmodule
+
+
+module CHANNEL
+  imports CONFIG
+  imports EXPRESSION
+  imports ASSIGN
+
+  syntax KItem ::= #send(Ref, Exprs)
+                 | #sendMsg(Chan, Msg)
+                 | #recv(Ref, Exprs)
+                 | #recvMsg(Exprs, Msg)
+
+  /* Buffered Send */
+
+  // Identify Chan
+  rule <k> #send(X [ E ] => {eval(X [ E ], ENV, STR, NET)}:>Chan, _) ...</k>
+       <env> ENV </env> <store> STR </store> <network> NET </network>
+
+  // Make Msg
+  rule <k> #send(ch(I), EL) => #sendMsg(ch(I), m(evalList(EL, ENV, STR, NET)))...</k>
+       <env> ENV </env> <store> STR </store> <network> NET </network>
+
+  // Push Msg
+  rule <k> #sendMsg(ch(I), MSG) => .K ...</k>
+       <network>... I |-> mq(_, _LIST(.List => ListItem(MSG))) ...</network>
+
+  /* Buffered Recv */ 
+  // Identify Chan
+  rule <k> #recv(X [ E ] => {eval(X [ E ], ENV, STR, NET)}:>Chan, _) ...</k>
+       <env> ENV </env> <store> STR </store> <network> NET </network>
+
+  // Pop Msg
+  rule <k> #recv(ch(I), EL) => #recvMsg(EL, MSG) ...</k>
+       <network>... I |-> mq(_, (ListItem(MSG) => .List) _LIST) ...</network>
+
+  // Assign Msg
+  rule #recvMsg(.Exprs, _) => .K
+  rule #recvMsg((V:Value , EL), m(ListItem(V) VL)) => #recvMsg(EL, m(VL))
+  rule #recvMsg((X [ E ] , EL), m(ListItem(V) VL)) => #assign(X, E, V) ~> #recvMsg(EL, m(VL))
+  rule #recvMsg((X:Id , EL), m(ListItem(V) VL)) => #assign(X, 0, V) ~> #recvMsg(EL, m(VL))
+
+endmodule
+
+
+module RUN
+  imports CONFIG
+
+  syntax Map ::= gEnv(Map, Set) [function] // remove local variables from ENV
+  rule gEnv((lval(X:Id, _) |-> _) M, SetItem(X) S) => gEnv(M, SetItem(X) S)
+  rule gEnv(M, _) => M [owise]
+
+  syntax KItem ::= #run(Id, Exprs)
+  //
+  rule <procs>...
+         <proc>...
+           <k> #run(P, _EL) => .K ...</k>
+           <local> IDS </local>
+           <env> ENV </env>
+      ...</proc>
+         (.Bag =>
+         <proc>
+           <pid> PID </pid>
+           <name> P </name>
+           <k> S </k> // FIXME: param init
+           <local> .Set </local>
+           <env> gEnv(ENV, IDS) </env>
+         </proc>)
+    ...</procs>
+
+       <proctype>...
+         <procName> P </procName>
+         //<procParams>  <procParams>
+         <procBody> S </procBody>
+    ...</proctype>
+
+       <nextPid> PID </nextPid>
+endmodule
+
+
+module GUARD // BASICSTMT
+/*
+  purification must be done while Basic Decomposition, i.e. before any run is done
+*/
+  imports EXPRESSION
+  imports ASSIGN
+  imports CHANNEL
+  imports RUN
+
+  /* Executability Condition Test */
+  syntax Bool ::= isExec(BasicStmt, Map, Map, Map, Int) [function]
+  rule isExec(_, _, _, _, _) => false [owise]
+  rule isExec(E:Expr, ENV, STR, NET, PID)
+    => {eval(purify(E, PID), ENV, STR, NET)}:>Bool ==K true
+       // FIXME: orBool {eval(purify(E, PID), ENV, STR, NET)}:>Int >Int 0 // Condition
+  rule isExec(_ = _, _, _, _, _) => true // Assign
+  rule isExec(X [ E ] ! _, ENV, STR, NET, _)
+    => eval(nfull(X [ E ]), ENV, STR, NET) ==K true // Buf Send
+  rule isExec(X [ E ] ? EL, ENV, STR, NET, _)
+    => eval(X [ E ] ? [ EL ], ENV, STR, NET) ==K true // Buf Recv
+
+
+  /* Basic-Effect Decomposition */  
+  syntax K ::= effect(BasicStmt, Int) [function]
+  rule effect(_, _) => .K [owise]
+  // Run Effects
+  rule effect(run X ( EL ), _) => #run(X, EL)
+  rule effect(E1 + E2, PID)    => effect(E1, PID) ~> effect(E2, PID)
+  rule effect(E1 - E2, PID)    => effect(E1, PID) ~> effect(E2, PID)
+  rule effect(E1 * E2, PID)    => effect(E1, PID) ~> effect(E2, PID)
+  rule effect(E1 / E2, PID)    => effect(E1, PID) ~> effect(E2, PID)
+  rule effect(E1 && E2, PID)   => effect(E1, PID) ~> effect(E2, PID)
+  rule effect(E1 || E2, PID)   => effect(E1, PID) ~> effect(E2, PID)
+  rule effect(E1 < E2, PID)    => effect(E1, PID) ~> effect(E2, PID)
+  rule effect(E1 <= E2, PID)   => effect(E1, PID) ~> effect(E2, PID)
+  rule effect(E1 > E2, PID)    => effect(E1, PID) ~> effect(E2, PID)
+  rule effect(E1 >= E2, PID)   => effect(E1, PID) ~> effect(E2, PID)
+  rule effect(E1 == E2, PID)   => effect(E1, PID) ~> effect(E2, PID)
+  rule effect(E1 != E2, PID)   => effect(E1, PID) ~> effect(E2, PID)
+  // Basic Effects
+  rule effect(X = E, PID) => #assign(X, 0, purify(E, PID)) // desugar
+  rule effect(X [ E ] = E', PID) => effect(E', PID) ~> #assign(X, E, purify(E', PID))
+  rule effect(X ! EL, _) => #send(X [ 0 ], EL) // desugar
+  rule effect(X [ E ] ! EL, _) => #send(X [ E ], EL)
+  rule effect(X ? EL, _) => #recv(X [ 0 ], EL) // desugar
+  rule effect(X [ E ] ? EL, _) => #recv(X [ E ], EL)
+endmodule
+
+
+module CONTROL // CONTROL-DECOMPOSITION or CONTROL-EFFECT as opposed GUARD-EFFECT
+/*
+  control effects are applied functionally, with "des"
+*/
+  imports BASIC
+  imports ATOMICITY
+
+  syntax KItem ::= "@[" K "]" // stores branch as a local computation K
+
+  /* Control-Effect Decomposition */
+  // assume 2nd arg is of form Stmt ~> K
+  syntax Set ::= des(Bool, K) [function] // des(true, ...) means #rel is inserted appropriately
+  rule des(true, BS:BasicStmt ~> K) => SetItem(@[ BS ~> K ])
+  rule des(false, BS:BasicStmt ~> K) => des(true, BS ~> #rel ~> K)
+  rule des(B, (S ; S'):Seq ~> K) => des(B, S ~> S' ~> K) // FIXME
+  //rule des(B, .Seq ~> K) => des(B, K) // FIXME
+  rule des(true, atomic { S } ~> K) => des(true, S ~> K) // inner atomic
+  rule des(false, atomic { S } ~> K) => des(true, S ~> #rel ~> K) // outermost atomic
+  rule des(B, if (:: S) OL fi ~> K) => des(B, S ~> K) des(B, if OL fi ~> K)
+  rule des(_, if .Optns fi ~> _) => .Set
+  rule des(B, S:Goto ~> K) => des(B, true ~> S ~> K)
+  rule des(B, do OL od ~> K) =>  des(B, if OL fi ~> do OL od ~> K)
+
+  // no assumption on the 2nd arg
+  syntax K ::= desK(Bool, K) [function] // extension of des
+  rule desK(B, S ; SEQ:Seq ~> K) => des(B, S ~> SEQ ~> K) requires _:Goto :/=K S
+  rule desK(_, S:Goto ; SEQ ~> K) => S ~> SEQ ~> K
+  rule desK(B, .Seq ~> K) => desK(B, K)
+  rule desK(_, #rel ~> K) => (#rel ~> desK(false, K))
+  rule desK(_, .K) => .K
+  rule desK(B, K) => des(B, K) [owise]
+endmodule
+
+
+module PROMELA
+  imports CONFIG
+  imports EXPRESSION
+  imports CONTROL
+  imports GUARD
+  imports GOTO
+
+  syntax Stmt ::= "stop"
+
+/*
+  // Sequential Decomposition
+  rule <pid> PID </pid> <lock> LCK </lock>
+       <k> (S:Stmt ; S':Seq) => (S ~> S') ...</k>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+
+  rule <pid> PID </pid> <lock> LCK </lock>
+       <k> .Seq => .K ...</k>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+
+  // Control Decomposition
+  rule <pid> PID </pid> <lock> LCK </lock>
+       <k> S:Stmt => des(PID ==K LCK, S) ...</k>
+    requires (_:Goto :/=K S)
+             andBool (LCK ==K #none orBool LCK ==K PID) // check lock
+*/
+/*
+  rule <pid> PID </pid> <lock> LCK </lock>
+       <k> S:Seq => des(PID ==K LCK, S) ...</k>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+*/
+
+  // new try
+  // Sequential Decomposition
+  rule <pid> PID </pid> <lock> LCK </lock>
+       <k> (S ; S' ; SEQ:Seq) => (des(PID ==K LCK, S) ~> S' ; SEQ) ...</k>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock TODO: not goto
+
+  rule <pid> PID </pid> <lock> LCK </lock>
+       <k> (S ; .Seq) => des(PID ==K LCK, S) ...</k>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock TODO: not goto
+
+
+
+  // Basic Decomposition - Optimized
+  rule <k> ((SetItem(@[BS ~> K]) _:Set) ~> K')
+        => (effect(BS, PID') ~> desK(true, K ~> K')) </k>
+       <pid> PID </pid>
+       <env> ENV </env>
+       <store> STR </store>
+       <network> NET </network>
+       <nextPid> PID' </nextPid>
+       <lock> LCK => PID </lock> // acquire
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+             andBool isExec(BS, ENV, STR, NET, PID') ==K true
+
+  /* Handshake */
+  syntax KItem ::= #toss(Lock) // generalizes #rel (i.e. #rel = #toss(#none))
+  rule <k> #toss(LCK) ...</k> <lock> _ => LCK </lock>
+
+  // @[K2] becase K2 might contain #rel; but what if goto is in the front
+  rule
+    <proc>...
+      <pid> PID1 </pid>
+      <k>
+        (SetItem(@[ X1 [ E1 ] ! EL1 ~> K1 ]) _) => des(true, K1)
+   ...</k>
+      <env> ENV1 </env>
+ ...</proc>
+    <proc>...
+      <pid> PID2 </pid>
+      <k>
+        (SetItem(@[ X2 [ E2 ] ? EL2 ~> K2 ]) _) =>
+        (#recvMsg(EL2, m(evalList(EL1, ENV1, STR, NET))) ~> #toss(LCK) ~> des(true, K2))
+   ...</k>
+      <env> ENV2 </env>
+ ...</proc>
+    <lock> LCK => PID2 </lock>
+    <store> STR </store>
+    <network> NET </network>
+    requires (LCK ==K #none orBool LCK ==K PID1 orBool LCK ==K PID2)
+             andBool hs(_) :=K eval(X1 [ E1 ], ENV1, STR, NET) // check if hs
+             andBool eval(X1 [ E1 ], ENV1, STR, NET) ==K eval(X2 [ E2 ], ENV2, STR, NET) // check ch_id
 endmodule
