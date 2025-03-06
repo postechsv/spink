@@ -18,6 +18,9 @@ module SPEC
   syntax Id ::= "$x" [token] | "$y" [token]
               | "$n" [token] | "$s" [token]
 
+
+
+/* adding this will work. why?
   claim [summation-lemma]:
         <procs>
           <proc>...
@@ -66,6 +69,7 @@ SetItem ( @[ 0 < $n ~> #rel ~> $s [ 0 ] = $s + $n ; $n [ 0 ] = $n - 1 ; .Seq ~> 
         </store>
         <lock> #none </lock>
     requires N >Int 0 
+*/
 
 /*
   claim [assign]:
@@ -161,9 +165,6 @@ SetItem ( @[ 0 < $n ~> #rel ~> $s [ 0 ] = $s + $n ; $n [ 0 ] = $n - 1 ; .Seq ~> 
         <lock> #none </lock>
   requires SIZE >Int 0
 
-  syntax Id ::= "$f0" [token] | "$f1" [token]
-              | "$turn" [token] | "$reg" [token]
-
   claim [peterson]:
         <procs>
           <proc>...
@@ -211,6 +212,12 @@ SetItem ( @[ 0 < $n ~> #rel ~> $s [ 0 ] = $s + $n ; $n [ 0 ] = $n - 1 ; .Seq ~> 
         </store>
         <lock> #none </lock>
 
+*/
+
+  syntax Id ::= "$f0" [token] | "$f1" [token]
+              | "$turn" [token] | "$reg" [token]
+
+
   claim [peterson]:
         <procs>
           <proc>...
@@ -257,5 +264,5 @@ SetItem ( @[ 0 < $n ~> #rel ~> $s [ 0 ] = $s + $n ; $n [ 0 ] = $n - 1 ; .Seq ~> 
           (5 |-> (0 => ?_)) // reg1
         </store>
         <lock> #none </lock>
-*/ 
+
 endmodule 
