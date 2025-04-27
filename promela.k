@@ -30,7 +30,7 @@ module PROMELA-SYNTAX
 
   syntax Stmt ::= BasicStmt
                 | Goto
-                | "atomic" "{" Stmt "}"
+                | "atomic" "{" Seq "}"
                 | "if" Optns "fi"
                 | "do" Optns "od"
 
@@ -463,11 +463,12 @@ module PROMELA
   rule <pid> PID </pid> <lock> LCK </lock>
        <k> (S ; S' ; SEQ:Seq) => (des(PID ==K LCK, S) ~> S' ; SEQ) ...</k>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock TODO: not goto
+    [priority(48)]
 
   rule <pid> PID </pid> <lock> LCK </lock>
        <k> (S ; .Seq) => des(PID ==K LCK, S) ...</k>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock TODO: not goto
-
+    [priority(49)]
 
 
   // Basic Decomposition - Optimized

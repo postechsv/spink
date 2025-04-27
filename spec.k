@@ -20,8 +20,8 @@ module SPEC
 
 
 
-/* adding this will work. why?
-  claim [summation-lemma]:
+/*
+  claim [summation-inv]:
         <procs>
           <proc>...
             <pid> 1 </pid>
@@ -164,55 +164,8 @@ SetItem ( @[ 0 < $n ~> #rel ~> $s [ 0 ] = $s + $n ; $n [ 0 ] = $n - 1 ; .Seq ~> 
         </network>
         <lock> #none </lock>
   requires SIZE >Int 0
-
-  claim [peterson]:
-        <procs>
-          <proc>...
-            <pid> 0 </pid>
-            <k>( 
-              ($f0 = 1):Stmt ~> ($turn = 1):Stmt ~>
-              (($f1 != 1) || ($turn != 1)):Stmt ~>
-              ($reg = $x + 1):Stmt ~> ($x = $reg):Stmt ~>
-              ($f0 = 0):Stmt
-              ) => .K
-            </k>
-            <env>
-              (lval($x,0) |-> loc(0))
-              (lval($f0,0) |-> loc(1))
-              (lval($f1,0) |-> loc(2))
-              (lval($turn,0) |-> loc(3))
-              (lval($reg,0) |-> loc(4)) // local
-            </env>
-       ...</proc>
-          <proc>...
-            <pid> 1 </pid>
-            <k> (
-              ($f1 = 1):Stmt ~> ($turn = 0):Stmt ~>
-              (($f0 != 1) || ($turn != 0)):Stmt ~>
-              ($reg = $x + 1):Stmt ~> ($x = $reg):Stmt ~>
-              ($f1 = 0):Stmt
-              ) => .K
-            </k>
-            <env>
-              (lval($x,0) |-> loc(0))
-              (lval($f0,0) |-> loc(1))
-              (lval($f1,0) |-> loc(2))
-              (lval($turn,0) |-> loc(3))
-              (lval($reg,0) |-> loc(5)) // local
-            </env>
-       ...</proc>
-        </procs>
-        <store>
-          (0 |-> (0 => 2)) // x
-          (1 |-> (0 => ?_)) // f0
-          (2 |-> (0 => ?_)) // f1
-          (3 |-> (0 => ?_)) // turn
-          (4 |-> (0 => ?_)) // reg0
-          (5 |-> (0 => ?_)) // reg1
-        </store>
-        <lock> #none </lock>
-
 */
+
 
   syntax Id ::= "$f0" [token] | "$f1" [token]
               | "$turn" [token] | "$reg" [token]
@@ -265,4 +218,89 @@ SetItem ( @[ 0 < $n ~> #rel ~> $s [ 0 ] = $s + $n ; $n [ 0 ] = $n - 1 ; .Seq ~> 
         </store>
         <lock> #none </lock>
 
+
+/*
+  syntax Id ::= "$p1" [token] | "$p2" [token]
+              | "$disp" [token] | "$serv" [token]
+              | "$stat" [token] | "$tick" [token]
+
+
+  claim <procs>
+          <proc>...
+            <pid> 1 </pid>
+            <name> $p1 </name>
+            <k>
+              do
+                :: atomic {
+                     $stat == 0 ;
+                     $stat[0] = 1 ;
+                     $tick[0] = $disp ; // wait(disp)
+                     $disp[0] = $disp + 1
+                   }
+                :: atomic {
+                     ($stat == 1) && ($tick == $serv) ; 
+                     $stat[0] = 2 // crit
+                   }
+                :: atomic {
+                     $stat == 2 ;
+                     $stat[0] = 0 ; // idle
+                     $serv[0] = $serv + 1
+                   } ; break
+              od ; .Seq
+              => ?_
+            </k>
+            <env>
+              (lval($disp,0) |-> loc(0))
+              (lval($serv,0) |-> loc(1))
+              (lval($stat,0) |-> loc(2))
+              (lval($tick,0) |-> loc(3))
+            </env>
+       ...</proc>
+
+          <proc>...
+            <pid> 2 </pid>
+            <name> $p2 </name>
+            <k>
+              do
+                :: atomic {
+                     $stat == 0 ;
+                     $stat[0] = 1 ;
+                     $tick[0] = $disp ; // wait(disp)
+                     $disp[0] = $disp + 1
+                   }
+                :: atomic {
+                     ($stat == 1) && ($tick == $serv) ; 
+                     $stat[0] = 2 // crit
+                   }
+                :: atomic {
+                     $stat == 2 ;
+                     $stat[0] = 0 ; // idle
+                     $serv[0] = $serv + 1
+                   } ; break
+              od ; .Seq
+              => ?_
+            </k>
+            <env>
+              (lval($disp,0) |-> loc(0))
+              (lval($serv,0) |-> loc(1))
+              (lval($stat,0) |-> loc(4))
+              (lval($tick,0) |-> loc(5))
+            </env>
+       ...</proc>
+        </procs>
+
+        <lock> #none </lock>
+
+        <store>
+          (0 |-> (N:Int => ?DISP:Int)) // disp
+          (1 |-> (N => ?SERV:Int)) // serv
+          (2 |-> (0 => 2)) // stat1
+          (3 |-> (-1 => ?_)) // tick1
+          (4 |-> (0 => ?_)) // stat2
+          (5 |-> (-1 => ?_)) // tick2
+        </store>
+
+    ensures (?SERV <=Int ?DISP) andBool (?DISP <=Int ?SERV +Int 2)
+            //andBool (?SERV <=Int ?T1) andBool (?T1 <=Int ?SERV +Int 1) // more stronger assertion
+*/
 endmodule 
