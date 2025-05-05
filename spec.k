@@ -108,11 +108,65 @@ module SPEC
     ensures ?Y2' %Int 2 ==K 0 
 */
 
+  syntax Id ::= "$x" [token] | "$y" [token]
+              | "$f0" [token] | "$f1" [token]
+              | "$turn" [token] | "$reg" [token]
 
+
+  claim [peterson]:
+        <procs>
+          <proc>...
+            <pid> 0 </pid>
+            <k> 
+              $f0 = 1 ; $turn = 1 ;
+              ($f1 != 1) || ($turn != 1) ;
+              $reg = $x + 1 ; $x = $reg ;
+              $f0 = 0
+              => .K
+            </k>
+            <env>
+              (lval($x,0) |-> loc(I0))
+              (lval($f0,0) |-> loc(I1))
+              (lval($f1,0) |-> loc(I2))
+              (lval($turn,0) |-> loc(I3))
+              (lval($reg,0) |-> loc(I4)) // local
+            </env>
+       ...</proc>
+          <proc>...
+            <pid> 1 </pid>
+            <k> 
+              $f1 = 1 ; $turn = 0 ;
+              ($f0 != 1) || ($turn != 0) ;
+              $reg = $x + 1 ; $x = $reg ;
+              $f1 = 0
+              => .K
+            </k>
+            <env>
+              (lval($x,0) |-> loc(I0))
+              (lval($f0,0) |-> loc(I1))
+              (lval($f1,0) |-> loc(I2))
+              (lval($turn,0) |-> loc(I3))
+              (lval($reg,0) |-> loc(I5)) // local
+            </env>
+       ...</proc>
+        </procs>
+        <store>
+          (I0:Int |-> (0 => 2)) // x
+          (I1:Int |-> (0 => ?_)) // f0
+          (I2:Int |-> (0 => ?_)) // f1
+          (I3:Int |-> (0 => ?_)) // turn
+          (I4:Int |-> (0 => ?_)) // reg0
+          (I5:Int |-> (0 => ?_)) // reg1
+        </store>
+        <lock> #none </lock>
+        requires I0 =/=K I1 andBool I1 =/=K I2 andBool I2 =/=K I3 andBool I3 =/=K I4 andBool I4 =/=K I5 
+
+
+/*
   syntax Id ::= "$x" [token] | "$y" [token]
               | "$n" [token] | "$s" [token]
 
-  claim [summation-inv]:
+  claim [summation]:
         <procs>
           <proc>...
             <pid> 1 </pid>
@@ -136,32 +190,6 @@ SetItem ( @[ 0 < $n ~> #rel ~> $s [ 0 ] = $s + $n ; $n [ 0 ] = $n - 1 ; .Seq ~> 
         <store>
           (I0 |-> (S:Int => S +Int ((N +Int 1) *Int N /Int 2)))
           (I1 |-> (N:Int => 0))
-        </store>
-        <lock> #none </lock>
-    requires N >Int 0 
-
-/*
-  claim [summation]:
-        <procs>
-          <proc>...
-            <pid> 1 </pid>
-            <k>
-              do
-                :: 0 < $n ; $s[0] = $s + $n ; $n[0] = $n - 1
-                :: 0 >= $n ; break
-              od ; .Seq
-              => .K
-            </k>
-            <env>
-              (lval($s,0) |-> loc(0))
-              (lval($n,0) |-> loc(1))
-            </env>
-       ...</proc>
-        </procs>
-
-        <store>
-          (0 |-> (S:Int => S +Int ((N +Int 1) *Int N /Int 2)))
-          (1 |-> (N:Int => 0))
         </store>
         <lock> #none </lock>
     requires N >Int 0 
@@ -262,141 +290,5 @@ SetItem ( @[ 0 < $n ~> #rel ~> $s [ 0 ] = $s + $n ; $n [ 0 ] = $n - 1 ; .Seq ~> 
   requires SIZE >Int 0
 */
 
-/*
-  syntax Id ::= "$f0" [token] | "$f1" [token]
-              | "$turn" [token] | "$reg" [token]
 
-
-  claim [peterson]:
-        <procs>
-          <proc>...
-            <pid> 0 </pid>
-            <k> 
-              $f0 = 1 ; $turn = 1 ;
-              ($f1 != 1) || ($turn != 1) ;
-              $reg = $x + 1 ; $x = $reg ;
-              $f0 = 0
-              => .K
-            </k>
-            <env>
-              (lval($x,0) |-> loc(0))
-              (lval($f0,0) |-> loc(1))
-              (lval($f1,0) |-> loc(2))
-              (lval($turn,0) |-> loc(3))
-              (lval($reg,0) |-> loc(4)) // local
-            </env>
-       ...</proc>
-          <proc>...
-            <pid> 1 </pid>
-            <k> 
-              $f1 = 1 ; $turn = 0 ;
-              ($f0 != 1) || ($turn != 0) ;
-              $reg = $x + 1 ; $x = $reg ;
-              $f1 = 0
-              => .K
-            </k>
-            <env>
-              (lval($x,0) |-> loc(0))
-              (lval($f0,0) |-> loc(1))
-              (lval($f1,0) |-> loc(2))
-              (lval($turn,0) |-> loc(3))
-              (lval($reg,0) |-> loc(5)) // local
-            </env>
-       ...</proc>
-        </procs>
-        <store>
-          (0 |-> (0 => 2)) // x
-          (1 |-> (0 => ?_)) // f0
-          (2 |-> (0 => ?_)) // f1
-          (3 |-> (0 => ?_)) // turn
-          (4 |-> (0 => ?_)) // reg0
-          (5 |-> (0 => ?_)) // reg1
-        </store>
-        <lock> #none </lock>
-*/
-
-/*
-  syntax Id ::= "$p1" [token] | "$p2" [token]
-              | "$disp" [token] | "$serv" [token]
-              | "$stat" [token] | "$tick" [token]
-
-
-  claim <procs>
-          <proc>...
-            <pid> 1 </pid>
-            <name> $p1 </name>
-            <k>
-              do
-                :: atomic {
-                     $stat == 0 ;
-                     $stat[0] = 1 ;
-                     $tick[0] = $disp ; // wait(disp)
-                     $disp[0] = $disp + 1
-                   }
-                :: atomic {
-                     ($stat == 1) && ($tick == $serv) ; 
-                     $stat[0] = 2 // crit
-                   }
-                :: atomic {
-                     $stat == 2 ;
-                     $stat[0] = 0 ; // idle
-                     $serv[0] = $serv + 1
-                   } ; break
-              od ; .Seq
-              => ?_
-            </k>
-            <env>
-              (lval($disp,0) |-> loc(0))
-              (lval($serv,0) |-> loc(1))
-              (lval($stat,0) |-> loc(2))
-              (lval($tick,0) |-> loc(3))
-            </env>
-       ...</proc>
-
-          <proc>...
-            <pid> 2 </pid>
-            <name> $p2 </name>
-            <k>
-              do
-                :: atomic {
-                     $stat == 0 ;
-                     $stat[0] = 1 ;
-                     $tick[0] = $disp ; // wait(disp)
-                     $disp[0] = $disp + 1
-                   }
-                :: atomic {
-                     ($stat == 1) && ($tick == $serv) ; 
-                     $stat[0] = 2 // crit
-                   }
-                :: atomic {
-                     $stat == 2 ;
-                     $stat[0] = 0 ; // idle
-                     $serv[0] = $serv + 1
-                   } ; break
-              od ; .Seq
-              => ?_
-            </k>
-            <env>
-              (lval($disp,0) |-> loc(0))
-              (lval($serv,0) |-> loc(1))
-              (lval($stat,0) |-> loc(4))
-              (lval($tick,0) |-> loc(5))
-            </env>
-       ...</proc>
-        </procs>
-
-        <lock> #none </lock>
-
-        <store>
-          (0 |-> (N:Int => ?DISP:Int)) // disp
-          (1 |-> (N => ?SERV:Int)) // serv
-          (2 |-> (0 => 2)) // stat1
-          (3 |-> (-1 => ?_)) // tick1
-          (4 |-> (0 => ?_)) // stat2
-          (5 |-> (-1 => ?_)) // tick2
-        </store>
-
-    ensures (?SERV <=Int ?DISP) andBool (?DISP <=Int ?SERV +Int 2)
-            //andBool (?SERV <=Int ?T1) andBool (?T1 <=Int ?SERV +Int 1) // more stronger assertion
-*/
 endmodule 
