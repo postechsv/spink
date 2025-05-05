@@ -15,7 +15,7 @@ endmodule
 module SPEC
   imports VERIFICATION
 
-
+/*
   syntax Id ::= "$x" [token] | "$y" [token]
               | "$n" [token] | "$s" [token]
 
@@ -106,9 +106,9 @@ module SPEC
         <lock> #none </lock>
     requires X2 %Int 2 ==K 0 andBool Y2 %Int 2 ==K 0
     ensures ?Y2' %Int 2 ==K 0 
+*/
 
 
-/*
   syntax Id ::= "$x" [token] | "$y" [token]
               | "$n" [token] | "$s" [token]
 
@@ -117,25 +117,30 @@ module SPEC
           <proc>...
             <pid> 1 </pid>
             <k>
+            //  do
+            //    :: 0 < $n ; $s[0] = $s + $n ; $n[0] = $n - 1
+            //    :: 0 >= $n ; break
+            //  od ; .Seq
+  
 SetItem ( @[ 0 < $n ~> #rel ~> $s [ 0 ] = $s + $n ; $n [ 0 ] = $n - 1 ; .Seq ~> do :: 0 < $n ; $s [ 0 ] = $s + $n ; $n [ 0 ] = $n - 1 ; .Seq  :: 0 >= $n ; break ; .Seq  .Optns od ~> .K ] )
           SetItem ( @[ 0 >= $n ~> #rel ~> break ; .Seq ~> do :: 0 < $n ; $s [ 0 ] = $s + $n ; $n [ 0 ] = $n - 1 ; .Seq  :: 0 >= $n ; break ; .Seq  .Optns od ~> .K ] )
               => .K
             </k>
             <env>
-              (lval($s,0) |-> loc(0))
-              (lval($n,0) |-> loc(1))
+              (lval($s,0) |-> loc(I0:Int))
+              (lval($n,0) |-> loc(I1:Int))
             </env>
        ...</proc>
         </procs>
 
         <store>
-          (0 |-> (S:Int => S +Int ((N +Int 1) *Int N /Int 2)))
-          (1 |-> (N:Int => 0))
+          (I0 |-> (S:Int => S +Int ((N +Int 1) *Int N /Int 2)))
+          (I1 |-> (N:Int => 0))
         </store>
         <lock> #none </lock>
     requires N >Int 0 
 
-
+/*
   claim [summation]:
         <procs>
           <proc>...
