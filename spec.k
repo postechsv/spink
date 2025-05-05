@@ -15,6 +15,104 @@ endmodule
 module SPEC
   imports VERIFICATION
 
+  syntax Id ::= "$x" [token] | "$y" [token]
+              | "$n" [token] | "$s" [token]
+
+
+  claim [example-inv]:
+        <procs>
+          <proc>...
+            <pid> 1 </pid>
+            <k>
+//do
+//   :: true ; break
+//   :: $x > 0 ; $x = $x + 4
+//   :: atomic { $x < 10 ; $x = $x + 1 ; $x = $x + 1 }
+//od ; .Seq
+(
+          SetItem ( @[ $x < 10 ~> $x = $x + 1 ; $x = $x + 1 ; .Seq ~> #rel ~> .Seq ~> do :: true ; break ; .Seq  :: $x > 0 ; $x = $x + 4 ; .Seq  :: atomic { $x < 10 ; $x = $x + 1 ; $x = $x + 1 ; .Seq } ; .Seq  .Optns od ~> .Seq ~> .K ] )
+          SetItem ( @[ $x > 0 ~> #rel ~> $x = $x + 4 ; .Seq ~> do :: true ; break ; .Seq  :: $x > 0 ; $x = $x + 4 ; .Seq  :: atomic { $x < 10 ; $x = $x + 1 ; $x = $x + 1 ; .Seq } ; .Seq  .Optns od ~> .Seq ~> .K ] )
+          SetItem ( @[ true ~> #rel ~> break ; .Seq ~> do :: true ; break ; .Seq  :: $x > 0 ; $x = $x + 4 ; .Seq  :: atomic { $x < 10 ; $x = $x + 1 ; $x = $x + 1 ; .Seq } ; .Seq  .Optns od ~> .Seq ~> .K ] ) ~> .K
+)
+             => ?_
+            </k>
+            <env>
+              (lval($x,0) |-> loc(0))
+              (lval($y,0) |-> loc(1))
+            </env>
+       ...</proc>
+          <proc>...
+            <pid> 2 </pid>
+            <k>
+              //($y = $x):BasicStmt ; .Seq 
+(SetItem ( @[ ($y = $x):Stmt ~> #rel ~> .K ] ) ~> .K)
+              => .K
+            </k>
+            <env>
+              (lval($x,0) |-> loc(0))
+              (lval($y,0) |-> loc(1))
+            </env>
+       ...</proc>
+        </procs>
+
+        <store>
+          (0 |-> (X:Int => ?_))
+          (1 |-> (Y:Int => ?Y':Int))
+        </store>
+        <lock> #none </lock>
+    requires X %Int 2 ==K 0 andBool Y %Int 2 ==K 0
+    ensures ?Y' %Int 2 ==K 0 
+
+
+  claim [example]:
+        <procs>
+          <proc>...
+            <pid> 1 </pid>
+            <k>
+// if
+// :: $x < $y ; $x = $x + 2
+// :: do
+//    :: true ; break
+//    :: $x > 0 ; $x = $x + 4
+//    :: atomic { $x < 10 ; $x = $x + 1 ; $x = $x + 1 }
+//    od
+// fi ; .Seq
+(
+          SetItem ( @[ $x < 10 ~> $x = $x + 1 ; $x = $x + 1 ; .Seq ~> #rel ~> .Seq ~> do :: true ; break ; .Seq  :: $x > 0 ; $x = $x + 4 ; .Seq  :: atomic { $x < 10 ; $x = $x + 1 ; $x = $x + 1 ; .Seq } ; .Seq  .Optns od ~> .Seq ~> .K ] )
+          SetItem ( @[ $x < $y ~> #rel ~> $x = $x + 2 ; .Seq ~> .K ] )
+          SetItem ( @[ $x > 0 ~> #rel ~> $x = $x + 4 ; .Seq ~> do :: true ; break ; .Seq  :: $x > 0 ; $x = $x + 4 ; .Seq  :: atomic { $x < 10 ; $x = $x + 1 ; $x = $x + 1 ; .Seq } ; .Seq  .Optns od ~> .Seq ~> .K ] )
+          SetItem ( @[ true ~> #rel ~> break ; .Seq ~> do :: true ; break ; .Seq  :: $x > 0 ; $x = $x + 4 ; .Seq  :: atomic { $x < 10 ; $x = $x + 1 ; $x = $x + 1 ; .Seq } ; .Seq  .Optns od ~> .Seq ~> .K ] ) ~> .K
+)
+              => ?_
+            </k>
+            <env>
+              (lval($x,0) |-> loc(0))
+              (lval($y,0) |-> loc(1))
+            </env>
+       ...</proc>
+          <proc>...
+            <pid> 2 </pid>
+            <k>
+              //($y = $x):BasicStmt ; .Seq 
+(SetItem ( @[ ($y = $x):Stmt ~> #rel ~> .K ] ) ~> .K)
+              => .K
+            </k>
+            <env>
+              (lval($x,0) |-> loc(0))
+              (lval($y,0) |-> loc(1))
+            </env>
+       ...</proc>
+        </procs>
+
+        <store>
+          (0 |-> (X2:Int => ?_))
+          (1 |-> (Y2:Int => ?Y2':Int))
+        </store>
+        <lock> #none </lock>
+    requires X2 %Int 2 ==K 0 andBool Y2 %Int 2 ==K 0
+    ensures ?Y2' %Int 2 ==K 0 
+
+
 /*
   syntax Id ::= "$x" [token] | "$y" [token]
               | "$n" [token] | "$s" [token]
@@ -108,6 +206,7 @@ module SPEC
     ensures ?Y2' %Int 2 ==K 0 
 */
 
+/*
   syntax Id ::= "$x" [token] | "$y" [token]
               | "$f0" [token] | "$f1" [token]
               | "$turn" [token] | "$reg" [token]
@@ -160,7 +259,7 @@ module SPEC
         </store>
         <lock> #none </lock>
         requires I0 =/=K I1 andBool I1 =/=K I2 andBool I2 =/=K I3 andBool I3 =/=K I4 andBool I4 =/=K I5 
-
+*/
 
 /*
   syntax Id ::= "$x" [token] | "$y" [token]
