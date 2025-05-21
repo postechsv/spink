@@ -7,17 +7,18 @@ module PROMELA-SYNTAX
                 | Decl
                 | Spec Spec [left]
 
-  syntax Proc ::=  Active "proctype" Id "(" Decls ")" "{" Stmt "}"
-                 | "proctype" Id "(" Decls ")" "{" Stmt "}"
+  syntax Proc ::=  Active "proctype" Id "(" Decls ")" "{" Seq "}"
+                 | "proctype" Id "(" Decls ")" "{" Seq "}"
 
   syntax Active ::= "active" | "active" "[" Const "]"
 
   syntax Decl ::= Type Ivar
-
   syntax Decls ::= List{Decl, ";"} // this often causes ambiguity w/ Seq
 
-  syntax Type ::= "int" | "bool" | "chan"
 
+  syntax PType ::= "int" | "bool" 
+  syntax CType ::= "chan"
+  syntax Type ::= PType | CType
   syntax Types ::= List{Type, ","}
 
   syntax BasicStmt ::= Decl | Expr
@@ -119,8 +120,83 @@ module CONFIG
 
                   <nextLoc> 0 </nextLoc>
                   <nextPid> 0 </nextPid>
-
+                  <nextBCid> 0 </nextBCid>
+                  <nextHCid> 0 </nextHCid>
                 </T>
+endmodule
+
+
+module RUN
+  imports CONFIG
+
+  syntax Map ::= gEnv(Map, Set) [function] // remove local variables from ENV
+  rule gEnv((lval(X:Id, _) |-> _) M, SetItem(X) S) => gEnv(M, SetItem(X) S)
+  rule gEnv(M, _) => M [owise]
+
+  syntax KItem ::= #run(Id, Exprs) | "#wait" | "#done" | #init(Decls, Exprs)
+  //
+  rule <procs>...
+         <proc>...
+           <k> #run(X, EL) => #wait ...</k>
+           <local> XS </local>
+           <env> ENV </env>
+      ...</proc>
+         (.Bag =>
+         <proc>
+           <pid> I </pid>
+           <name> X </name>
+           <k> #init(DL,EL) ~> #done ~> SL </k> // FIXME: param init
+           <local> .Set </local>
+           <env> gEnv(ENV, XS) </env>
+         </proc>)
+    ...</procs>
+
+       <proctype>...
+         <procName> X </procName>
+         <procParams> DL </procParams>
+         <procBody> SL </procBody>
+    ...</proctype>
+
+       <nextPid> I => I +Int 1 </nextPid>
+endmodule
+
+
+module INIT
+  imports RUN
+//  imports CONFIG
+
+  rule S:Spec S':Spec => S ~> S'
+
+  rule <k> proctype X ( DL ) { SL } => .K ...</k>
+       (.Bag => <proctype>
+                  <procName> X </procName>
+                  <procParams> DL </procParams>
+                  <procBody> SL </procBody>
+                  <gotoMap> .Map </gotoMap> // TODO
+                </proctype>)
+
+  rule <k> active proctype X ( DL ) { SL } => (proctype X ( DL ) { SL } ~> #run(X, .Exprs)) ...</k>
+ 
+  // initializing multiple locations
+  syntax Map ::= Int "..." Int "|->" K [function]
+  rule N...M |-> _ => .Map  requires N >Int M
+  rule N...M |-> K => N |-> K (N +Int 1)...M |-> K  requires N <=Int M
+
+  syntax Map ::= "lval" Id "::" Int "..." Int "|->" Int "..." Int [function]
+  rule lval _ :: N...M |-> I...J => .Map  requires N >Int M orBool I >Int J
+  rule lval X :: N...M |-> I...J => (lval(X,N) |-> I) lval X :: (N +Int 1)...M |-> (I +Int 1)...J  requires N <=Int M andBool I <=Int J
+
+  // decl
+  rule int X[I] => int X[I] = 0                   rule int X => int X[1] = 0
+  rule bool X[I] => bool X[I] = false             rule bool X => bool X[1] = false
+
+  rule <k> (_:PType X:Id[I:Int] = V:Value) => .K ...</k>
+       <env> _:Map (.Map => lval X :: 0 ...(I -Int 1) |-> J...(J +Int I -Int 1)) </env> 
+       <store> _:Map (.Map => J...(J +Int I -Int 1) |-> V) </store>
+       <nextLoc> J => J +Int I </nextLoc>
+    requires I >Int 0
+
+
 endmodule
 
 module EXPRESSION
@@ -309,41 +385,6 @@ module CHANNEL
 endmodule
 
 
-module RUN
-  imports CONFIG
-
-  syntax Map ::= gEnv(Map, Set) [function] // remove local variables from ENV
-  rule gEnv((lval(X:Id, _) |-> _) M, SetItem(X) S) => gEnv(M, SetItem(X) S)
-  rule gEnv(M, _) => M [owise]
-
-  syntax KItem ::= #run(Id, Exprs)
-  //
-  rule <procs>...
-         <proc>...
-           <k> #run(P, _EL) => .K ...</k>
-           <local> IDS </local>
-           <env> ENV </env>
-      ...</proc>
-         (.Bag =>
-         <proc>
-           <pid> PID </pid>
-           <name> P </name>
-           <k> S </k> // FIXME: param init
-           <local> .Set </local>
-           <env> gEnv(ENV, IDS) </env>
-         </proc>)
-    ...</procs>
-
-       <proctype>...
-         <procName> P </procName>
-         //<procParams>  <procParams>
-         <procBody> S </procBody>
-    ...</proctype>
-
-       <nextPid> PID </nextPid>
-endmodule
-
-
 module GUARD // BASICSTMT
 /*
   purification must be done while Basic Decomposition, i.e. before any run is done
@@ -429,6 +470,7 @@ endmodule
 
 module PROMELA
   imports CONFIG
+  imports INIT
   imports EXPRESSION
   imports CONTROL
   imports GUARD
