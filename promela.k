@@ -26,16 +26,16 @@ module PROMELA-SYNTAX
                      | Vref "!" Exprs // Send
                      | Vref "?" Exprs // Recv
                      | "skip"
-
-  syntax Goto ::= "goto" Id | "break"
-
+  syntax GotoStmt ::= "goto" Id | "break"
+  syntax DeclStmt ::= Decl // originally corresponds to decl "step"
   syntax Stmt ::= BasicStmt
-                | Goto
+                | DeclStmt
+                | GotoStmt
                 | "atomic" "{" Seq "}"
                 | "if" Optns "fi"
                 | "do" Optns "od"
 
-  syntax Seq ::= List{Stmt, ";"}
+  syntax Seq ::= List{Stmt, ";"} [prefer]
 
   syntax Expr ::= Const | Vref
                 | "(" Expr ")" [bracket]
@@ -89,15 +89,15 @@ module CONFIG
   imports BASIC
   imports SET
 
-  syntax Id ::= "$procName" [token]
+  syntax Id ::= "Main" [token]
 
   configuration <T color="yellow">
                   /* PROCTYPES */
                   <proctypes>
                     <proctype multiplicity="*" type="Map" initial="">
-                      <procName> $procName </procName>
+                      <procName> Main </procName>
                       <procParams> .Decls </procParams>
-                      <procBody> skip:Stmt </procBody> // skip:BasicStmt doesn't allow Stmt's in general
+                      <procBody> .K </procBody> // skip:BasicStmt doesn't allow Stmt's in general
                       <gotoMap> .Map </gotoMap>
                     </proctype>
                   </proctypes>
@@ -106,7 +106,7 @@ module CONFIG
                   <procs>
                     <proc multiplicity="*" type="Map" color="orange" initial="">
                       <pid> -1 </pid>
-                      <name> $procName </name>
+                      <name> Main </name>
                       <k color="green"> $PGM:Spec </k>
                       <local color="orange"> .Set </local>
                       <env color="orange"> .Map </env>
@@ -126,18 +126,24 @@ module CONFIG
 endmodule
 
 
-module RUN
+module RUN // TODO: consider merging this module into INIT
   imports CONFIG
 
   syntax Map ::= gEnv(Map, Set) [function] // remove local variables from ENV
   rule gEnv((lval(X:Id, _) |-> _) M, SetItem(X) S) => gEnv(M, SetItem(X) S)
   rule gEnv(M, _) => M [owise]
 
-  syntax KItem ::= #run(Id, Exprs) | "#wait" | "#done" | #init(Decls, Exprs)
-  //
-  rule <procs>...
+/***
+  run is called by value
+  * #run(p, _:Expr) : yet to be reduced
+  * #run(p, _:List) : list of values
+***/
+  syntax KItem ::= #run(Id, K) | "#wait" | "#done" | #init(Decls, List)
+
+  rule [run]:
+       <procs>...
          <proc>...
-           <k> #run(X, EL) => #wait ...</k>
+           <k> #run(X, VL:List) => #wait ...</k>
            <local> XS </local>
            <env> ENV </env>
       ...</proc>
@@ -145,7 +151,7 @@ module RUN
          <proc>
            <pid> I </pid>
            <name> X </name>
-           <k> #init(DL,EL) ~> #done ~> SL </k> // FIXME: param init
+           <k> #init(DL,VL) ~> #done ~> SL </k>
            <local> .Set </local>
            <env> gEnv(ENV, XS) </env>
          </proc>)
@@ -158,6 +164,12 @@ module RUN
     ...</proctype>
 
        <nextPid> I => I +Int 1 </nextPid>
+
+  rule [done]: <k> #wait => .K ...</k> <k> #done => .K ...</k>
+
+  rule [init1]: #init(.Decls, _) => .K
+  rule [init2]: #init((PT:PType X:Id ; _:Decls), .List) => PT X
+  rule [init3]: #init((PT:PType X:Id ; _:Decls), (ListItem(V:Value) _:List)) => PT X = V
 endmodule
 
 
@@ -167,7 +179,8 @@ module INIT
 
   rule S:Spec S':Spec => S ~> S'
 
-  rule <k> proctype X ( DL ) { SL } => .K ...</k>
+  rule [proctype]:
+       <k> proctype X ( DL ) { SL } => .K ...</k>
        (.Bag => <proctype>
                   <procName> X </procName>
                   <procParams> DL </procParams>
@@ -175,25 +188,28 @@ module INIT
                   <gotoMap> .Map </gotoMap> // TODO
                 </proctype>)
 
-  rule <k> active proctype X ( DL ) { SL } => (proctype X ( DL ) { SL } ~> #run(X, .Exprs)) ...</k>
+  rule <k> active proctype X ( DL ) { SL } => (proctype X ( DL ) { SL } ~> #run(X, .List)) ...</k>
  
   // initializing multiple locations
   syntax Map ::= Int "..." Int "|->" K [function]
   rule N...M |-> _ => .Map  requires N >Int M
   rule N...M |-> K => N |-> K (N +Int 1)...M |-> K  requires N <=Int M
 
-  syntax Map ::= "lval" Id "::" Int "..." Int "|->" Int "..." Int [function]
-  rule lval _ :: N...M |-> I...J => .Map  requires N >Int M orBool I >Int J
-  rule lval X :: N...M |-> I...J => (lval(X,N) |-> I) lval X :: (N +Int 1)...M |-> (I +Int 1)...J  requires N <=Int M andBool I <=Int J
+  syntax Map ::= "lval" Id "::" Int "..." Int "|->" "loc" Int "..." Int [function]
+  rule lval _ :: N...M |-> loc I...J => .Map  requires N >Int M orBool I >Int J
+  rule lval X :: N...M |-> loc I...J => (lval(X,N) |-> loc(I)) (lval X :: (N +Int 1)...M |-> loc (I +Int 1)...J)  requires N <=Int M andBool I <=Int J
 
   // decl
   rule int X[I] => int X[I] = 0                   rule int X => int X[1] = 0
   rule bool X[I] => bool X[I] = false             rule bool X => bool X[1] = false
 
-  rule <k> (_:PType X:Id[I:Int] = V:Value) => .K ...</k>
-       <env> _:Map (.Map => lval X :: 0 ...(I -Int 1) |-> J...(J +Int I -Int 1)) </env> 
-       <store> _:Map (.Map => J...(J +Int I -Int 1) |-> V) </store>
-       <nextLoc> J => J +Int I </nextLoc>
+  rule [decl-prim]:
+    <pid> PID </pid>
+    <k> (_:PType X:Id[I:Int] = V:Value) => .K ...</k>
+    <env> _:Map (.Map => lval X :: 0 ...(I -Int 1) |-> loc J...(J +Int I -Int 1)) </env> 
+    <local> _:Set (.Set => #if PID ==K -1 #then .Set #else SetItem(X) #fi) </local>
+    <store> _:Map (.Map => J...(J +Int I -Int 1) |-> V) </store>
+    <nextLoc> J => J +Int I </nextLoc>
     requires I >Int 0
 
 
@@ -445,19 +461,20 @@ module CONTROL // CONTROL-DECOMPOSITION or CONTROL-EFFECT as opposed GUARD-EFFEC
 
   /* Control-Effect Decomposition */
   // assume 2nd arg is of form Stmt ~> K
-  syntax Set ::= des(Bool, K) [function] // des(true, ...) means #rel is inserted appropriately
-  rule des(true, BS:BasicStmt ~> K) => SetItem(@[ BS ~> K ])
-  rule des(false, BS:BasicStmt ~> K) => des(true, BS ~> #rel ~> K)
-  rule des(B, (S ; S'):Seq ~> K) => des(B, S ~> S' ~> K) // FIXME
+  syntax Set ::= load(Bool, K) [function] // des(true, ...) means #rel is inserted appropriately
+  rule load(true, BS:BasicStmt ~> K) => SetItem(@[ BS ~> K ])
+  rule load(false, BS:BasicStmt ~> K) => load(true, BS ~> #rel ~> K)
+  rule load(B, (S ; S'):Seq ~> K) => load(B, S ~> S' ~> K) // FIXME
   //rule des(B, .Seq ~> K) => des(B, K) // FIXME
-  rule des(true, atomic { S } ~> K) => des(true, S ~> K) // inner atomic
-  rule des(false, atomic { S } ~> K) => des(true, S ~> #rel ~> K) // outermost atomic
-  rule des(B, if (:: S) OL fi ~> K) => des(B, S ~> K) des(B, if OL fi ~> K)
-  rule des(_, if .Optns fi ~> _) => .Set
-  rule des(B, S:Goto ~> K) => des(B, true ~> S ~> K)
-  rule des(B, do OL od ~> K) =>  des(B, if OL fi ~> do OL od ~> K)
+  rule load(true, atomic { S } ~> K) => load(true, S ~> K) // inner atomic
+  rule load(false, atomic { S } ~> K) => load(true, S ~> #rel ~> K) // outermost atomic
+  rule load(B, if (:: S) OL fi ~> K) => load(B, S ~> K) load(B, if OL fi ~> K)
+  rule load(_, if .Optns fi ~> _) => .Set
+  rule load(B, S:GotoStmt ~> K) => load(B, true ~> S ~> K)
+  rule load(B, do OL od ~> K) => load(B, if OL fi ~> do OL od ~> K)
 
   // no assumption on the 2nd arg
+/*
   syntax K ::= desK(Bool, K) [function] // extension of des
   rule desK(B, S ; SEQ:Seq ~> K) => des(B, S ~> SEQ ~> K) requires _:Goto :/=K S
   rule desK(_, S:Goto ; SEQ ~> K) => S ~> SEQ ~> K
@@ -465,6 +482,7 @@ module CONTROL // CONTROL-DECOMPOSITION or CONTROL-EFFECT as opposed GUARD-EFFEC
   rule desK(_, #rel ~> K) => (#rel ~> desK(false, K))
   rule desK(_, .K) => .K
   rule desK(B, K) => des(B, K) [owise]
+*/
 endmodule
 
 
@@ -478,30 +496,46 @@ module PROMELA
 
   syntax Stmt ::= "stop"
 
-/*
-  // Sequential Decomposition
-  rule <pid> PID </pid> <lock> LCK </lock>
-       <k> (S:Stmt ; S':Seq) => (S ~> S') ...</k>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
 
-  rule <pid> PID </pid> <lock> LCK </lock>
+
+  // Sequential Decomposition
+  rule [seq1]:
+       <pid> PID </pid> <lock> LCK </lock>
        <k> .Seq => .K ...</k>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
 
-  // Control Decomposition
-  rule <pid> PID </pid> <lock> LCK </lock>
-       <k> S:Stmt => des(PID ==K LCK, S) ...</k>
-    requires (_:Goto :/=K S)
-             andBool (LCK ==K #none orBool LCK ==K PID) // check lock
-*/
+
+  rule [seq2]:
+       <pid> PID </pid> <lock> LCK </lock>
+       <k> (S:Stmt ; S':Seq) => (S ~> S') ...</k>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+
+  // Load
+  rule [load]:
+    <pid> PID </pid> <lock> LCK </lock>
+    <k> S:Stmt => load(PID ==K LCK, S) ...</k>
+    requires (_:GotoStmt :/=K S) andBool (_:DeclStmt :/=K S)
+             andBool (LCK ==K #none orBool LCK ==K PID) // check lock for opt
+
+  // Fire 
+  rule [fire]:
+    <pid> PID </pid> <lock> LCK => PID </lock>
+    <k> ((SetItem(@[BS ~> K]) _:Set) ~> K')
+        => (effect(BS, PID') ~> K ~> K')
+    </k>
+    <env> ENV </env> <store> STR </store> <network> NET </network>
+    <nextPid> PID' </nextPid>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+             andBool isExec(BS, ENV, STR, NET, PID') ==K true
+
+
 /*
   rule <pid> PID </pid> <lock> LCK </lock>
        <k> S:Seq => des(PID ==K LCK, S) ...</k>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
 */
 
-  // new try
-  // Sequential Decomposition
+/* load: optimized version
   rule <pid> PID </pid> <lock> LCK </lock>
        <k> (S ; S' ; SEQ:Seq) => (des(PID ==K LCK, S) ~> S' ; SEQ) ...</k>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock TODO: not goto
@@ -512,8 +546,6 @@ module PROMELA
     requires (LCK ==K #none orBool LCK ==K PID) // check lock TODO: not goto
     [priority(49)]
 
-
-  // Basic Decomposition - Optimized
   rule <k> ((SetItem(@[BS ~> K]) _:Set) ~> K')
         => (effect(BS, PID') ~> desK(true, K ~> K')) </k>
        <pid> PID </pid>
@@ -524,8 +556,10 @@ module PROMELA
        <lock> LCK => PID </lock> // acquire
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
              andBool isExec(BS, ENV, STR, NET, PID') ==K true
+*/
 
   /* Handshake */
+/*
   syntax KItem ::= #toss(Lock) // generalizes #rel (i.e. #rel = #toss(#none))
   rule <k> #toss(LCK) ...</k> <lock> _ => LCK </lock>
 
@@ -552,4 +586,5 @@ module PROMELA
     requires (LCK ==K #none orBool LCK ==K PID1 orBool LCK ==K PID2)
              andBool hs(_) :=K eval(X1 [ E1 ], ENV1, STR, NET) // check if hs
              andBool eval(X1 [ E1 ], ENV1, STR, NET) ==K eval(X2 [ E2 ], ENV2, STR, NET) // check ch_id
+*/
 endmodule
