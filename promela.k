@@ -185,23 +185,32 @@ module INIT
                   <procName> X </procName>
                   <procParams> DL </procParams>
                   <procBody> SL </procBody>
-                  <gotoMap> .Map </gotoMap> // TODO
+                  <gotoMap> .Map </gotoMap> // TODO: construct gotomap in the init phase
                 </proctype>)
 
   rule <k> active proctype X ( DL ) { SL } => (proctype X ( DL ) { SL } ~> #run(X, .List)) ...</k>
  
-  // initializing multiple locations
+  // auxiliary func for initializing store
   syntax Map ::= Int "..." Int "|->" K [function]
   rule N...M |-> _ => .Map  requires N >Int M
   rule N...M |-> K => N |-> K (N +Int 1)...M |-> K  requires N <=Int M
 
+  // auxiliary func for initializing loc
   syntax Map ::= "lval" Id "::" Int "..." Int "|->" "loc" Int "..." Int [function]
   rule lval _ :: N...M |-> loc I...J => .Map  requires N >Int M orBool I >Int J
   rule lval X :: N...M |-> loc I...J => (lval(X,N) |-> loc(I)) (lval X :: (N +Int 1)...M |-> loc (I +Int 1)...J)  requires N <=Int M andBool I <=Int J
 
-  // decl
-  rule int X[I] => int X[I] = 0                   rule int X => int X[1] = 0
-  rule bool X[I] => bool X[I] = false             rule bool X => bool X[1] = false
+  // TODO: auxiliary func for initializing bch
+  // TODO: auxiliary func for initializing hch
+
+  // decl desugaring rules
+  rule int X[I] => int X[I] = 0          rule int X => int X[1] = 0
+  rule bool X[I] => bool X[I] = false    rule bool X => bool X[1] = false
+  rule T:Type X = V:Value => T X[1] = V
+
+  // heating & cooling for strict declarations
+  // TODO: rule T:Type X = E:Expr => #eval(E) ~> T X[1] = HOLE requires _:Value :=/K E
+  // TODO: rule #eval(V:Value) ~> T X[1] = (_ => V)
 
   rule [decl-prim]:
     <pid> PID </pid>
@@ -212,7 +221,9 @@ module INIT
     <nextLoc> J => J +Int I </nextLoc>
     requires I >Int 0
 
-
+  // TODO: rule [decl-uch]
+  // TODO: rule [decl-bch]
+  // TODO: rule [decl-hch]
 endmodule
 
 module EXPRESSION
