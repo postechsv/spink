@@ -514,12 +514,13 @@ module PROMELA
        <pid> PID </pid> <lock> LCK </lock>
        <k> .Seq => .K ...</k>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
-
+    [priority(151)]
 
   rule [seq2]:
        <pid> PID </pid> <lock> LCK </lock>
        <k> (S:Stmt ; S':Seq) => (S ~> S') ...</k>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
+    [priority(152)]
 
   // Load
   rule [load]:
@@ -527,6 +528,7 @@ module PROMELA
     <k> S:Stmt => load(PID ==K LCK, S) ...</k>
     requires (_:GotoStmt :/=K S) andBool (_:DeclStmt :/=K S)
              andBool (LCK ==K #none orBool LCK ==K PID) // check lock for opt
+  [priority(153)]
 
   // Fire 
   rule [fire]:
@@ -538,13 +540,9 @@ module PROMELA
     <nextPid> PID' </nextPid>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
              andBool isExec(BS, ENV, STR, NET, PID') ==K true
+  [priority(49)]
 
 
-/*
-  rule <pid> PID </pid> <lock> LCK </lock>
-       <k> S:Seq => des(PID ==K LCK, S) ...</k>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-*/
 
 /* load: optimized version
   rule <pid> PID </pid> <lock> LCK </lock>
