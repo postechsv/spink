@@ -187,9 +187,11 @@ module INIT
                   <procBody> SL </procBody>
                   <gotoMap> .Map </gotoMap> // TODO: construct gotomap in the init phase
                 </proctype>)
+  [priority(0)]
 
   rule <k> active proctype X ( DL ) { SL } => (proctype X ( DL ) { SL } ~> #run(X, .List)) ...</k>
- 
+  [priority(0)]
+
   // auxiliary func for initializing store
   syntax Map ::= Int "..." Int "|->" K [function]
   rule N...M |-> _ => .Map  requires N >Int M
@@ -314,12 +316,14 @@ module ATOMICITY
 
   syntax KItem ::= "#rel"
 
-  // Release (Controlled)
-  rule <k> #rel => .K ...</k> <pid> PID </pid>
-       <lock> PID => #none </lock> // acquire
+  // Release (Controlled) - old
+  /* rule <k> #rel => .K ...</k> <pid> PID </pid>
+       <lock> PID => #none </lock> */ // acquire
+
+  rule [rel]: <k> #rel => .K ...</k> <lock> _ => #none </lock>
 
   // Loose (Uncontrolled)
-  rule <lock> _:Int => #none </lock> [owise]
+  rule [loose]: <lock> _:Int => #none </lock> [owise]
 endmodule
 
 
@@ -530,7 +534,7 @@ module PROMELA
              andBool (LCK ==K #none orBool LCK ==K PID) // check lock for opt
   [priority(153)]
 
-  // Fire 
+
   rule [fire]:
     <pid> PID </pid> <lock> LCK => PID </lock>
     <k> ((SetItem(@[BS ~> K]) _:Set) ~> K')
@@ -543,6 +547,39 @@ module PROMELA
   [priority(49)]
 
 
+
+  rule [hs-fire] :
+    <proc>...
+      <pid> PID1 </pid>
+      <k>
+        (SetItem(@[ X1 [ E1 ] ! EL1 ~> K1 ]) _) => K1
+   ...</k>
+      <env> ENV1 </env>
+ ...</proc>
+    <proc>...
+      <pid> PID2 </pid>
+      <k>
+        (SetItem(@[ X2 [ E2 ] ? EL2 ~> K2 ]) _) =>
+        (#recvMsg(EL2, m(evalList(EL1, ENV1, STR, NET))) ~> K2)
+   ...</k>
+      <env> ENV2 </env>
+ ...</proc>
+    <lock> LCK => PID2 </lock>
+    <store> STR </store>
+    <network> NET </network>
+    requires (LCK ==K #none orBool LCK ==K PID1 orBool LCK ==K PID2) // check lock
+             andBool eval(X1 [ E1 ], ENV1, STR, NET) ==HChan eval(X2 [ E2 ], ENV2, STR, NET) // check HChan eq
+             // andBool match(EL,AL)
+
+  syntax Bool ::= Value "==HChan" Value [function]
+  rule hs(I) ==HChan hs(I) => true
+  rule _ ==HChan _ => false [owise] 
+
+  syntax KItem ::= #toss(Lock) // generalizes #rel (i.e. #rel = #toss(#none))
+  rule <k> #toss(LCK) ...</k> <lock> _ => LCK </lock>
+
+
+ 
 
 /* load: optimized version
   rule <pid> PID </pid> <lock> LCK </lock>
@@ -567,7 +604,8 @@ module PROMELA
              andBool isExec(BS, ENV, STR, NET, PID') ==K true
 */
 
-  /* Handshake */
+
+  /* Handshake - old */
 /*
   syntax KItem ::= #toss(Lock) // generalizes #rel (i.e. #rel = #toss(#none))
   rule <k> #toss(LCK) ...</k> <lock> _ => LCK </lock>

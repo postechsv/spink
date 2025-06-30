@@ -2,20 +2,17 @@
 
 ## kompile
 ```
-kompile promela.k
-```
-
-For deductive verification:
-```
 kompile promela.k --backend haskell
 ```
 
 ## krun
 ```
-krun example.pml
+krun example/code.pml
+krun example/code.pml --search
 ```
 
 ## kprove
 ```
 kprove spec.k
+kprove casestudy/spec.k --verbose
 ```
