@@ -531,7 +531,7 @@ module PROMELA
     <pid> PID </pid> <lock> LCK </lock>
     <k> S:Stmt => load(PID ==K LCK, S) ...</k>
     requires (_:GotoStmt :/=K S) andBool (_:DeclStmt :/=K S)
-             andBool (LCK ==K #none orBool LCK ==K PID) // check lock for opt
+             //andBool (LCK ==K #none orBool LCK ==K PID) // this condition is necessary due to handshake chaining
   [priority(153)]
 
 
@@ -552,7 +552,7 @@ module PROMELA
     <proc>...
       <pid> PID1 </pid>
       <k>
-        (SetItem(@[ X1 [ E1 ] ! EL1 ~> K1 ]) _) => K1
+        (SetItem(@[ X1 [ E1 ] ! EL1 ~> K1 ]) _) => SetItem(@[ true ~> K1 ]) // to prevent early release due to double #rel by reload
    ...</k>
       <env> ENV1 </env>
  ...</proc>
@@ -560,7 +560,7 @@ module PROMELA
       <pid> PID2 </pid>
       <k>
         (SetItem(@[ X2 [ E2 ] ? EL2 ~> K2 ]) _) =>
-        (#recvMsg(EL2, m(evalList(EL1, ENV1, STR, NET))) ~> K2)
+        (#if LCK ==K PID1 #then #toss(PID1) #else .K #fi ~> #recvMsg(EL2, m(evalList(EL1, ENV1, STR, NET))) ~> K2)
    ...</k>
       <env> ENV2 </env>
  ...</proc>
@@ -575,11 +575,11 @@ module PROMELA
   rule hs(I) ==HChan hs(I) => true
   rule _ ==HChan _ => false [owise] 
 
-  syntax KItem ::= #toss(Lock) // generalizes #rel (i.e. #rel = #toss(#none))
-  rule <k> #toss(LCK) ...</k> <lock> _ => LCK </lock>
+  syntax KItem ::= #toss(Int)
+  rule [toss1]: <k> (.K => KI) ~> #toss(_) ~> (KI:KItem => .K) ...</k> requires KI =/=K #rel
+  rule [toss2]: <k> (#toss(I) ~> #rel) => .K ...</k> <lock> _ => I </lock>
 
 
- 
 
 /* load: optimized version
   rule <pid> PID </pid> <lock> LCK </lock>
