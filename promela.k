@@ -510,8 +510,8 @@ module PROMELA
   imports GOTO
 
   syntax Stmt ::= "stop"
-
-
+  syntax KItem ::= "#freeze" // for verification purposes
+  rule #freeze => .K // FIXME: this has priority issue: it always happens first that the load rule etc.
 
   // Sequential Decomposition
   rule [seq1]:
@@ -531,7 +531,7 @@ module PROMELA
     <pid> PID </pid> <lock> LCK </lock>
     <k> S:Stmt => load(PID ==K LCK, S) ...</k>
     requires (_:GotoStmt :/=K S) andBool (_:DeclStmt :/=K S)
-             //andBool (LCK ==K #none orBool LCK ==K PID) // this condition is necessary due to handshake chaining
+             //andBool (LCK ==K #none orBool LCK ==K PID) // this cond should not be here
   [priority(153)]
 
 
