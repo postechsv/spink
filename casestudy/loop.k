@@ -19,8 +19,6 @@ module LOOP
 
   syntax Id ::= "$x" [token]
 
-//  rule [seq2]:
-//       <k> (S:Stmt ; S':Seq) => (S ~> S') ...</k> [simplification]
  
 
   claim [loop]:
@@ -29,7 +27,7 @@ module LOOP
             <pid> 1 </pid>
             <k>
               do
-                :: $x[0]  = $x[0] + 2
+                :: $x[0] = $x[0] + 2
                 :: break
               od
               => ?_
@@ -43,7 +41,7 @@ module LOOP
             <pid> 2 </pid>
             <k>
               do
-                :: $x[0]  = $x[0] + 2
+                :: $x[0] = $x[0] + 2
                 :: break
               od
               => ?_
@@ -68,5 +66,52 @@ module LOOP
 
     requires N %Int 2 ==K 0
     ensures ?M %Int 2 ==K 0
+
+
+  // the following lemma can be proven
+  // it is need to prevent pid I to loop forever when pid J is done
+
+  rule ( _I:Int ~> .K ) ==K ( #none ~> .K ) => false [simplification]
+
+  claim [loop-lemma]:
+        <procs>
+          <proc>...
+            <pid> I:Int </pid>
+            <k>
+              do
+                :: $x[0] = $x[0] + 2
+                :: break
+              od
+              => ?_
+            </k>
+            <env>
+              (lval($x,0) |-> loc(0))
+            </env>
+       ...</proc>
+
+          <proc>...
+            <pid> J:Int </pid>
+            <k> .K </k>
+            <env>
+              (lval($x,0) |-> loc(0))
+            </env>
+       ...</proc>
+
+          <proc>... // monitor
+            <pid> 0 </pid>
+            <k> true => .K </k>
+       ...</proc>
+ 
+        </procs>
+
+        <lock> #none </lock>
+
+        <store>
+          (0 |-> (N:Int => ?M)) // disp
+        </store>
+
+    requires I =/=K 0 andBool J =/=K 0 andBool I =/=K J andBool N %Int 2 ==K 0
+    ensures ?M %Int 2 ==K 0
+  [trusted]
 
 endmodule
