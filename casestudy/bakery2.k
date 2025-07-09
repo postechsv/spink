@@ -92,9 +92,9 @@ module BAKERY2
           (0 |-> (N:Int => ?_DISP:Int)) // disp
           (1 |-> (N => ?_SERV:Int)) // serv
           (2 |-> (0 => ?CRIT1)) // stat1
-          (3 |-> (_ => ?_)) // tick1
+          (3 |-> (_ => ?_TICK1)) // tick1
           (4 |-> (0 => ?CRIT2)) // stat2
-          (5 |-> (_ => ?_)) // tick2
+          (5 |-> (_ => ?_TICK2)) // tick2
         </store>
 
     ensures ?CRIT1 =/=K 2 orBool ?CRIT2 =/=K 2 // mutex
