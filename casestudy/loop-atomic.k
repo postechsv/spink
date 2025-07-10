@@ -23,13 +23,33 @@ module LOOP-ATOMIC
 
   claim [loop]:
         <procs>
+          <proc>... // controller
+            <pid> -1 </pid>
+            <k> //.K
+              #normalize(.List)
+              => ?_
+            </k>
+       ...</proc>
+ 
+          <proc>... // monitor
+            <pid> 0 </pid>
+            <k> //true
+              SetItem ( @[ true ~> #rel ] )
+              => .K 
+            </k>
+       ...</proc>
+ 
           <proc>...
             <pid> 1 </pid>
             <k>
-              do
-                :: $x[0] = $x[0] + 2
-                :: break
-              od
+              //do
+              //  :: atomic { $x[0] = $x[0] + 1 ; $x[0] = $x[0] + 1 }
+              //  :: break
+              //od
+(
+          SetItem ( @[ ($x [ 0 ] = $x [ 0 ] + 1):Stmt ~> ($x [ 0 ] = $x [ 0 ] + 1):Stmt ~> #rel ~> do :: atomic { $x [ 0 ] = $x [ 0 ] + 1 ; $x [ 0 ] = $x [ 0 ] + 1 ; .Seq } ; .Seq  :: break ; .Seq  .Optns od ~> .K ] )
+          SetItem ( @[ true ~> #rel ~> break ~> do :: atomic { $x [ 0 ] = $x [ 0 ] + 1 ; $x [ 0 ] = $x [ 0 ] + 1 ; .Seq } ; .Seq  :: break ; .Seq  .Optns od ~> .K ] )
+) 
               => ?_
             </k>
             <env>
@@ -40,28 +60,27 @@ module LOOP-ATOMIC
           <proc>...
             <pid> 2 </pid>
             <k>
-              do
-                :: $x[0] = $x[0] + 2
-                :: break
-              od
+              //do
+              //  :: atomic { $x[0] = $x[0] + 1 ; $x[0] = $x[0] + 1 }
+              //  :: break
+              //od
+(
+          SetItem ( @[ ($x [ 0 ] = $x [ 0 ] + 1):Stmt ~> ($x [ 0 ] = $x [ 0 ] + 1):Stmt ~> #rel ~> do :: atomic { $x [ 0 ] = $x [ 0 ] + 1 ; $x [ 0 ] = $x [ 0 ] + 1 ; .Seq } ; .Seq  :: break ; .Seq  .Optns od ~> .K ] )
+          SetItem ( @[ true ~> #rel ~> break ~> do :: atomic { $x [ 0 ] = $x [ 0 ] + 1 ; $x [ 0 ] = $x [ 0 ] + 1 ; .Seq } ; .Seq  :: break ; .Seq  .Optns od ~> .K ] )
+)
               => ?_
             </k>
             <env>
               (lval($x,0) |-> loc(0))
             </env>
        ...</proc>
-
-          <proc>... // monitor
-            <pid> 0 </pid>
-            <k> true => .K </k>
-       ...</proc>
- 
         </procs>
 
         <lock> #none </lock>
-
+        <active> ListItem(0) ListItem(1) ListItem(2) </active>
+ 
         <store>
-          (0 |-> (N:Int => ?M)) // disp
+          (0 |-> (N:Int => ?M))
         </store>
 
     requires N %Int 2 ==K 0
@@ -80,43 +99,102 @@ module LOOP-ATOMIC
 
   claim [loop-atomic-lemma]:
         <procs>
-          <proc>...
-            <pid> I:Int </pid>
+          <proc>... // controller
+            <pid> -1 </pid>
+            <k>
+               #normalize(ListItem(0) ListItem(1) ListItem(2)) => ?_
+            </k>
+       ...</proc>
+ 
+          <proc>... // monitor
+            <pid> 0 </pid>
+            <k> 
+               (SetItem ( @[ true ~> #rel ~> .K ] ) ~> .K) => .K
+            </k>
+       ...</proc>
+ 
+          <proc>... // pid I
+            <pid> _I:Int </pid>
             <k>
               do
                 :: atomic { $x[0] = $x[0] + 1 ; $x[0] = $x[0] + 1 }
                 :: break
-              od
-              => ?_
+              od => ?_
             </k>
             <env>
               (lval($x,0) |-> loc(0))
             </env>
        ...</proc>
 
-          <proc>...
-            <pid> J:Int </pid>
+          <proc>... // pid J
+            <pid> _J:Int </pid>
             <k> .K </k>
             <env>
               (lval($x,0) |-> loc(0))
             </env>
        ...</proc>
-
-          <proc>... // monitor
-            <pid> 0 </pid>
-            <k> true => .K </k>
-       ...</proc>
- 
         </procs>
 
         <lock> #none </lock>
+        <active> ListItem(0) ListItem(1) ListItem(2) </active>
 
         <store>
-          (0 |-> (N:Int => ?M)) // disp
+          (0 |-> (N:Int => ?M))
         </store>
 
-    requires I =/=Int 0 andBool J =/=Int 0 andBool I =/=Int J andBool N %Int 2 ==K 0
+    requires N %Int 2 ==K 0
     ensures ?M %Int 2 ==K 0
   //[trusted]
+
+/*
+  claim [loop-atomic-lemma2]:
+        <procs>
+          <proc>... // controller
+            <pid> -1 </pid>
+            <k>
+               #normalize(ListItem(0) ListItem(1) ListItem(2)) => ?_
+            </k>
+       ...</proc>
+ 
+          <proc>... // monitor
+            <pid> 0 </pid>
+            <k> 
+               (SetItem ( @[ true ~> #rel ~> .K ] ) ~> .K) => .K
+            </k>
+       ...</proc>
+ 
+          <proc>... // pid I
+            <pid> 2 </pid>
+            <k>
+              do
+                :: atomic { $x[0] = $x[0] + 1 ; $x[0] = $x[0] + 1 }
+                :: break
+              od => ?_
+            </k>
+            <env>
+              (lval($x,0) |-> loc(0))
+            </env>
+       ...</proc>
+
+          <proc>... // pid J
+            <pid> 1 </pid>
+            <k> .K </k>
+            <env>
+              (lval($x,0) |-> loc(0))
+            </env>
+       ...</proc>
+        </procs>
+
+        <lock> #none </lock>
+        <active> ListItem(0) ListItem(1) ListItem(2) </active>
+
+        <store>
+          (0 |-> (N:Int => ?M))
+        </store>
+
+    requires N %Int 2 ==K 0
+    ensures ?M %Int 2 ==K 0
+  [trusted]
+*/
 
 endmodule

@@ -118,6 +118,8 @@ module CONFIG
 
                   <lock> #none </lock>
 
+                  <active> .List:List </active>
+
                   <nextLoc> 0 </nextLoc>
                   <nextPid> 0 </nextPid>
                   <nextBCid> 0 </nextBCid>
@@ -340,11 +342,11 @@ module GOTO
        <proctype>...
          <procName> P </procName>
          <gotoMap>... L |-> gotoCtx(B, K) ...</gotoMap>
-    ...</proctype> 
+    ...</proctype> [priority(0)]
 
   // break - these rule only make sense if atomicity ctx is not altered
-  rule (break ~> do _ od) => .K
-  rule break ~> (KI:KItem => .K) requires do _ od :/=K KI
+  rule (break ~> do _ od) => .K [priority(0)]
+  rule break ~> (KI:KItem => .K) requires do _ od :/=K KI [priority(0)]
 endmodule
 
 
@@ -529,6 +531,8 @@ module PROMELA
   rule spload(B, S:Stmt ~> K) => load(B, S) ~> K requires (_:DeclStmt :/=K S)
   rule spload(_, K) => K [owise]
 
+// original spload: uncomment this block to rollback
+/*
   rule [spload]:
        <pid> PID </pid> <lock> LCK </lock>
        <k> SL:Seq => spload(PID ==K LCK, SL) ...</k>
@@ -549,7 +553,7 @@ module PROMELA
     requires (_:GotoStmt :/=K S) andBool (_:DeclStmt :/=K S)
              //andBool (LCK ==K #none orBool LCK ==K PID) // this cond should not be here
   [priority(153)]
-
+*/
 
   rule [fire]:
     <pid> PID </pid> <lock> LCK => PID </lock>
@@ -560,7 +564,7 @@ module PROMELA
     <nextPid> PID' </nextPid>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
              andBool isExec(BS, ENV, STR, NET, PID') ==K true
-  [priority(49)]
+  //[priority(51)]
 
 
 
@@ -596,40 +600,90 @@ module PROMELA
   rule [toss2]: <k> (#toss(I) ~> #rel) => .K ...</k> <lock> _ => I </lock>
 
 
-/* TODO: global control for spload
 
-  rule
+
+  // EXPERIMENTAL
+  // TODO: global control for spload
+  syntax KItem ::= #normalize(List) // TODO: maybe fix name to #spload
+  syntax Bool ::= sploadable(KItem) [function]
+  rule sploadable(S) => ((_:Stmt :=K S) orBool (_:Seq :=K S)) andBool (_:DeclStmt :/=K S)
+
+/*
+  rule [end]:
+    <active> PL => </active>
+    <pid> PID </pid>
+    <k> .K </k>
+  requires PID in PL
+*/
+
+  rule [synch-init1]:
     <lock> #none </lock>
     <active> PL </active> // list of active procs in increasing order
     <pid> -1 </pid> // global controller
     <k> .K => #normalize(PL) </k> 
-  [priority(0)] // IMPORTANT: this should happen before anything else!
+  [priority(1)] // IMPORTANT: this should happen before anything else!
 
-*/
+  rule [synch-init2]:
+    <lock> PID => #none </lock>
+    <active> PL </active> // list of active procs in increasing order
+    <proc>...
+      <pid> PID </pid>
+      <k> #rel => .K ...</k>
+ ...</proc>
+    <proc>...
+      <pid> -1 </pid>
+      <k> #normalize(.List => PL) </k>
+ ...</proc>
+  [priority(1)] // IMPORTANT: this should happen before anything else!
+ 
+
+  rule [spload-true]:
+       <lock> #none </lock>
+       <proc>...
+         <pid> PID </pid>
+         <k> KI:KItem => spload(false, KI) ...</k>
+    ...</proc>
+       <proc>...
+         <pid> -1 </pid>
+         <k> #normalize((ListItem(PID) => .List) _) </k>
+    ...</proc>
+    requires sploadable(KI)
+    [priority(2)]
+
+  rule [spload-false]:
+       <lock> #none </lock>
+       <proc>...
+         <pid> PID </pid>
+         <k> KI:KItem ...</k>
+    ...</proc>
+       <proc>...
+         <pid> -1 </pid>
+         <k> #normalize((ListItem(PID) => .List) _) </k>
+    ...</proc>
+    requires notBool sploadable(KI)
+    [priority(2)]
+
+  rule [spload-end]: // FIXME: this is ad-hoc
+       <lock> #none </lock>
+       <proc>...
+         <pid> PID </pid>
+         <k> .K </k>
+    ...</proc>
+       <proc>...
+         <pid> -1 </pid>
+         <k> #normalize((ListItem(PID) => .List) _) </k>
+    ...</proc>
+    [priority(2)]
 
 
-/* load: optimized version
-  rule <pid> PID </pid> <lock> LCK </lock>
-       <k> (S ; S' ; SEQ:Seq) => (des(PID ==K LCK, S) ~> S' ; SEQ) ...</k>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock TODO: not goto
-    [priority(48)]
-
-  rule <pid> PID </pid> <lock> LCK </lock>
-       <k> (S ; .Seq) => des(PID ==K LCK, S) ...</k>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock TODO: not goto
-    [priority(49)]
-
-  rule <k> ((SetItem(@[BS ~> K]) _:Set) ~> K')
-        => (effect(BS, PID') ~> desK(true, K ~> K')) </k>
-       <pid> PID </pid>
-       <env> ENV </env>
-       <store> STR </store>
-       <network> NET </network>
-       <nextPid> PID' </nextPid>
-       <lock> LCK => PID </lock> // acquire
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-             andBool isExec(BS, ENV, STR, NET, PID') ==K true
-*/
+  rule [spload-atomic]:
+       <lock> PID:Int </lock>
+       <proc>...
+         <pid> PID </pid>
+         <k> KI:KItem => spload(true, KI) ...</k>
+    ...</proc>
+    requires sploadable(KI)
+    [priority(2)]
 
 
 endmodule
