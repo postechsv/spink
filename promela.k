@@ -416,7 +416,7 @@ module CHANNEL
 endmodule
 
 
-module GUARD // BASICSTMT
+module FIRE // BASICSTMT
 /*
   purification must be done while Basic Decomposition, i.e. before any run is done
 */
@@ -465,10 +465,20 @@ module GUARD // BASICSTMT
 endmodule
 
 
-module CONTROL // CONTROL-DECOMPOSITION or CONTROL-EFFECT as opposed GUARD-EFFECT
+module SEQ // sequential decomposition
+  imports PROMELA-SYNTAX
+
+  syntax K ::= split(Seq) [function]
+  rule split(S:Stmt ; SL:Seq) => S ~> split(SL)
+  rule split(.Seq) => .K
+endmodule
+
+
+module LOAD // CONTROL-DECOMPOSITION or CONTROL-EFFECT as opposed GUARD-EFFECT
 /*
   control effects are applied functionally, with "des"
 */
+  imports SEQ
   imports BASIC
   imports ATOMICITY
 
@@ -479,11 +489,12 @@ module CONTROL // CONTROL-DECOMPOSITION or CONTROL-EFFECT as opposed GUARD-EFFEC
   syntax Set ::= load(Bool, K) [function] // des(true, ...) means #rel is inserted appropriately
   rule load(true, BS:BasicStmt ~> K) => SetItem(@[ BS ~> K ])
   rule load(false, BS:BasicStmt ~> K) => load(true, BS ~> #rel ~> K)
-  rule load(B, (S ; S'):Seq ~> K) => load(B, S ~> S' ~> K) // FIXME
+  rule load(B, SL:Seq ~> K) => load(B, split(SL) ~> K)
+  //rule load(B, (S ; S'):Seq ~> K) => load(B, S ~> S' ~> K) // FIXME
   //rule des(B, .Seq ~> K) => des(B, K) // FIXME
-  rule load(true, atomic { S } ~> K) => load(true, S ~> K) // inner atomic
-  rule load(false, atomic { S } ~> K) => load(true, S ~> #rel ~> K) // outermost atomic
-  rule load(B, if (:: S) OL fi ~> K) => load(B, S ~> K) load(B, if OL fi ~> K)
+  rule load(true, atomic { SL } ~> K) => load(true, SL ~> K) // inner atomic
+  rule load(false, atomic { SL } ~> K) => load(true, SL ~> #rel ~> K) // outermost atomic
+  rule load(B, if (:: SL) OL fi ~> K) => load(B, SL ~> K) load(B, if OL fi ~> K)
   rule load(_, if .Optns fi ~> _) => .Set
   rule load(B, S:GotoStmt ~> K) => load(B, true ~> S ~> K)
   rule load(B, do OL od ~> K) => load(B, if OL fi ~> do OL od ~> K)
@@ -505,28 +516,33 @@ module PROMELA
   imports CONFIG
   imports INIT
   imports EXPRESSION
-  imports CONTROL
-  imports GUARD
+  imports LOAD
+  imports FIRE
   imports GOTO
 
   syntax Stmt ::= "stop"
   syntax KItem ::= "#freeze" // for verification purposes
-  rule #freeze => .K // FIXME: this has priority issue: it always happens first that the load rule etc.
+  //rule #freeze => .K // this has priority issue: it always happens first that the load rule etc.
 
-  // Sequential Decomposition
-  rule [seq1]:
+  syntax K ::= spload(Bool, K) [function]
+  rule spload(B, SL:Seq) => spload(B, split(SL))
+  rule spload(B, S:Stmt ~> K) => load(B, S) ~> K requires (_:DeclStmt :/=K S)
+  rule spload(_, K) => K [owise]
+
+  rule [spload]:
        <pid> PID </pid> <lock> LCK </lock>
-       <k> .Seq => .K ...</k>
+       <k> SL:Seq => spload(PID ==K LCK, SL) ...</k>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
     [priority(151)]
 
-  rule [seq2]:
+
+  rule [split]:
        <pid> PID </pid> <lock> LCK </lock>
-       <k> (S:Stmt ; S':Seq) => (S ~> S') ...</k>
+       <k> SL:Seq => split(SL) ...</k>
     requires (LCK ==K #none orBool LCK ==K PID) // check lock
     [priority(152)]
 
-  // Load
+
   rule [load]:
     <pid> PID </pid> <lock> LCK </lock>
     <k> S:Stmt => load(PID ==K LCK, S) ...</k>
@@ -580,6 +596,17 @@ module PROMELA
   rule [toss2]: <k> (#toss(I) ~> #rel) => .K ...</k> <lock> _ => I </lock>
 
 
+/* TODO: global control for spload
+
+  rule
+    <lock> #none </lock>
+    <active> PL </active> // list of active procs in increasing order
+    <pid> -1 </pid> // global controller
+    <k> .K => #normalize(PL) </k> 
+  [priority(0)] // IMPORTANT: this should happen before anything else!
+
+*/
+
 
 /* load: optimized version
   rule <pid> PID </pid> <lock> LCK </lock>
@@ -605,33 +632,4 @@ module PROMELA
 */
 
 
-  /* Handshake - old */
-/*
-  syntax KItem ::= #toss(Lock) // generalizes #rel (i.e. #rel = #toss(#none))
-  rule <k> #toss(LCK) ...</k> <lock> _ => LCK </lock>
-
-  // @[K2] becase K2 might contain #rel; but what if goto is in the front
-  rule
-    <proc>...
-      <pid> PID1 </pid>
-      <k>
-        (SetItem(@[ X1 [ E1 ] ! EL1 ~> K1 ]) _) => des(true, K1)
-   ...</k>
-      <env> ENV1 </env>
- ...</proc>
-    <proc>...
-      <pid> PID2 </pid>
-      <k>
-        (SetItem(@[ X2 [ E2 ] ? EL2 ~> K2 ]) _) =>
-        (#recvMsg(EL2, m(evalList(EL1, ENV1, STR, NET))) ~> #toss(LCK) ~> des(true, K2))
-   ...</k>
-      <env> ENV2 </env>
- ...</proc>
-    <lock> LCK => PID2 </lock>
-    <store> STR </store>
-    <network> NET </network>
-    requires (LCK ==K #none orBool LCK ==K PID1 orBool LCK ==K PID2)
-             andBool hs(_) :=K eval(X1 [ E1 ], ENV1, STR, NET) // check if hs
-             andBool eval(X1 [ E1 ], ENV1, STR, NET) ==K eval(X2 [ E2 ], ENV2, STR, NET) // check ch_id
-*/
 endmodule
