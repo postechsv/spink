@@ -22,7 +22,7 @@ module PROMELA-SYNTAX
   syntax Types ::= List{Type, ","}
 
   syntax BasicStmt ::= Decl | Expr
-                     | Vref "=" Expr // Assign
+                     | Vref "=" Expr [prefer] // Assign
                      | Vref "!" Exprs // Send
                      | Vref "?" Exprs // Recv
                      | "skip"

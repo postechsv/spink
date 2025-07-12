@@ -1,6 +1,8 @@
 requires "../promela.k"
 requires "domains.md"
 
+/*** this bakery3.k updates bakery2.k by generalizing N,N to N,M where N=M or N=M+1 ***/
+
 module SPEC-SYNTAX
   imports PROMELA-SYNTAX
 
@@ -14,7 +16,7 @@ module VERIFICATION
 
 endmodule
 
-module BAKERY2
+module BAKERY3
   imports VERIFICATION
 
   syntax Id ::= "$disp" [token] | "$serv" [token]
@@ -164,6 +166,7 @@ module BAKERY2
           (5 |-> (_ => ?_TICK2)) // tick2
         </store>
 
+    //requires D ==K S orBool D ==K S +Int 1
     ensures ?CRIT1 =/=K 2 orBool ?CRIT2 =/=K 2 // mutex
 
 
@@ -224,6 +227,7 @@ module BAKERY2
           (5 |-> (_ => ?_TICK2)) // tick2
         </store>
 
+    //requires D ==K S orBool D ==K S +Int 1
     ensures ?CRIT1 =/=K 2 orBool ?CRIT2 =/=K 2 // mutex
 [trusted] 
 
@@ -278,10 +282,11 @@ module BAKERY2
           (5 |-> (_ => ?_TICK2)) // tick2
         </store>
 
+    //requires D ==K S orBool D ==K S +Int 1
     ensures ?CRIT1 =/=K 2 orBool ?CRIT2 =/=K 2 // mutex
 [trusted] 
 
-  claim [bakery-mutex-lemma2a]:
+  claim [bakery-mutex-lemma7a]:
         <procs>
           <proc>... // controller
             <pid> -1 </pid>
@@ -296,8 +301,9 @@ module BAKERY2
           <proc>...
             <pid> 1 </pid>
             <k>
-SetItem ( @[ $tick [ 0 ] == $serv [ 0 ] ~> $crit [ 0 ] = 1 ~> #rel ~> .K ] ) ~> atomic { $serv [ 0 ] = $serv [ 0 ] + 1 ; $crit [ 0 ] = 0 ; .Seq } ~> do :: atomic { $tick [ 0 ] = $disp [ 0 ] ; $disp [ 0 ] = $disp [ 0 ] + 1 ; .Seq } ; atomic { $tick [ 0 ] == $serv [ 0 ] ; $crit [ 0 ] = 1 ; .Seq } ; atomic { $serv [ 0 ] = $serv [ 0 ] + 1 ; $crit [ 0 ] = 0 ; .Seq } ; .Seq  :: break ; .Seq  .Optns od
-             => ?_
+SetItem ( @[ $tick [ 0 ] = $disp [ 0 ] ~> $disp [ 0 ] = $disp [ 0 ] + 1 ~> #rel ~> atomic { $tick [ 0 ] == $serv [ 0 ] ; $crit [ 0 ] = 1 ; .Seq } ~> atomic { $serv [ 0 ] = $serv [ 0 ] + 1 ; $crit [ 0 ] = 0 ; .Seq } ~> do :: atomic { $tick [ 0 ] = $disp [ 0 ] ; $disp [ 0 ] = $disp [ 0 ] + 1 ; .Seq } ; atomic { $tick [ 0 ] == $serv [ 0 ] ; $crit [ 0 ] = 1 ; .Seq } ; atomic { $serv [ 0 ] = $serv [ 0 ] + 1 ; $crit [ 0 ] = 0 ; .Seq } ; .Seq  :: break ; .Seq  .Optns od ~> .K ] )
+SetItem ( @[ true ~> #rel ~> break ~> do :: atomic { $tick [ 0 ] = $disp [ 0 ] ; $disp [ 0 ] = $disp [ 0 ] + 1 ; .Seq } ; atomic { $tick [ 0 ] == $serv [ 0 ] ; $crit [ 0 ] = 1 ; .Seq } ; atomic { $serv [ 0 ] = $serv [ 0 ] + 1 ; $crit [ 0 ] = 0 ; .Seq } ; .Seq  :: break ; .Seq  .Optns od ~> .K ] )
+              => ?_
             </k>
             <env>
               (lval($disp,0) |-> loc(0))
@@ -309,7 +315,10 @@ SetItem ( @[ $tick [ 0 ] == $serv [ 0 ] ~> $crit [ 0 ] = 1 ~> #rel ~> .K ] ) ~> 
 
           <proc>...
             <pid> 2 </pid>
-            <k> .K </k>
+            <k> 
+SetItem ( @[ $tick [ 0 ] == $serv [ 0 ] ~> $crit [ 0 ] = 1 ~> #rel ~> .K ] ) ~> atomic { $serv [ 0 ] = $serv [ 0 ] + 1 ; $crit [ 0 ] = 0 ; .Seq } ~> do :: atomic { $tick [ 0 ] = $disp [ 0 ] ; $disp [ 0 ] = $disp [ 0 ] + 1 ; .Seq } ; atomic { $tick [ 0 ] == $serv [ 0 ] ; $crit [ 0 ] = 1 ; .Seq } ; atomic { $serv [ 0 ] = $serv [ 0 ] + 1 ; $crit [ 0 ] = 0 ; .Seq } ; .Seq  :: break ; .Seq  .Optns od
+              => ?_
+            </k>
             <env>
               (lval($disp,0) |-> loc(0))
               (lval($serv,0) |-> loc(1))
@@ -323,18 +332,19 @@ SetItem ( @[ $tick [ 0 ] == $serv [ 0 ] ~> $crit [ 0 ] = 1 ~> #rel ~> .K ] ) ~> 
         <active> ListItem(0) ListItem(1) ListItem(2) </active>
 
         <store>
-          (0 |-> (N:Int => ?_DISP:Int)) // disp
-          (1 |-> (N => ?_SERV:Int)) // serv
+          (0 |-> (N +Int 1 => ?_DISP:Int)) // disp
+          (1 |-> (N:Int => ?_SERV:Int)) // serv
           (2 |-> (0 => ?CRIT1)) // stat1
           (3 |-> (_ => ?_TICK1)) // tick1
           (4 |-> (0 => ?CRIT2)) // stat2
-          (5 |-> (_ => ?_TICK2)) // tick2
+          (5 |-> (N => ?_TICK2)) // tick2
         </store>
 
+    //requires D ==K S orBool D ==K S +Int 1
     ensures ?CRIT1 =/=K 2 orBool ?CRIT2 =/=K 2 // mutex
-[trusted] 
+//[trusted] 
 
-  claim [bakery-mutex-lemma2b]:
+  claim [bakery-mutex-lemma7b]:
         <procs>
           <proc>... // controller
             <pid> -1 </pid>
@@ -348,7 +358,10 @@ SetItem ( @[ $tick [ 0 ] == $serv [ 0 ] ~> $crit [ 0 ] = 1 ~> #rel ~> .K ] ) ~> 
  
           <proc>...
             <pid> 1 </pid>
-            <k> .K </k>
+            <k> 
+SetItem ( @[ $tick [ 0 ] == $serv [ 0 ] ~> $crit [ 0 ] = 1 ~> #rel ~> .K ] ) ~> atomic { $serv [ 0 ] = $serv [ 0 ] + 1 ; $crit [ 0 ] = 0 ; .Seq } ~> do :: atomic { $tick [ 0 ] = $disp [ 0 ] ; $disp [ 0 ] = $disp [ 0 ] + 1 ; .Seq } ; atomic { $tick [ 0 ] == $serv [ 0 ] ; $crit [ 0 ] = 1 ; .Seq } ; atomic { $serv [ 0 ] = $serv [ 0 ] + 1 ; $crit [ 0 ] = 0 ; .Seq } ; .Seq  :: break ; .Seq  .Optns od
+              => ?_ 
+            </k>
             <env>
               (lval($disp,0) |-> loc(0))
               (lval($serv,0) |-> loc(1))
@@ -359,9 +372,10 @@ SetItem ( @[ $tick [ 0 ] == $serv [ 0 ] ~> $crit [ 0 ] = 1 ~> #rel ~> .K ] ) ~> 
 
           <proc>...
             <pid> 2 </pid>
-             <k>
-SetItem ( @[ $tick [ 0 ] == $serv [ 0 ] ~> $crit [ 0 ] = 1 ~> #rel ~> .K ] ) ~> atomic { $serv [ 0 ] = $serv [ 0 ] + 1 ; $crit [ 0 ] = 0 ; .Seq } ~> do :: atomic { $tick [ 0 ] = $disp [ 0 ] ; $disp [ 0 ] = $disp [ 0 ] + 1 ; .Seq } ; atomic { $tick [ 0 ] == $serv [ 0 ] ; $crit [ 0 ] = 1 ; .Seq } ; atomic { $serv [ 0 ] = $serv [ 0 ] + 1 ; $crit [ 0 ] = 0 ; .Seq } ; .Seq  :: break ; .Seq  .Optns od
-             => ?_
+            <k>
+ SetItem ( @[ $tick [ 0 ] = $disp [ 0 ] ~> $disp [ 0 ] = $disp [ 0 ] + 1 ~> #rel ~> atomic { $tick [ 0 ] == $serv [ 0 ] ; $crit [ 0 ] = 1 ; .Seq } ~> atomic { $serv [ 0 ] = $serv [ 0 ] + 1 ; $crit [ 0 ] = 0 ; .Seq } ~> do :: atomic { $tick [ 0 ] = $disp [ 0 ] ; $disp [ 0 ] = $disp [ 0 ] + 1 ; .Seq } ; atomic { $tick [ 0 ] == $serv [ 0 ] ; $crit [ 0 ] = 1 ; .Seq } ; atomic { $serv [ 0 ] = $serv [ 0 ] + 1 ; $crit [ 0 ] = 0 ; .Seq } ; .Seq  :: break ; .Seq  .Optns od ~> .K ] )
+SetItem ( @[ true ~> #rel ~> break ~> do :: atomic { $tick [ 0 ] = $disp [ 0 ] ; $disp [ 0 ] = $disp [ 0 ] + 1 ; .Seq } ; atomic { $tick [ 0 ] == $serv [ 0 ] ; $crit [ 0 ] = 1 ; .Seq } ; atomic { $serv [ 0 ] = $serv [ 0 ] + 1 ; $crit [ 0 ] = 0 ; .Seq } ; .Seq  :: break ; .Seq  .Optns od ~> .K ] )
+              => ?_
             </k>
             <env>
               (lval($disp,0) |-> loc(0))
@@ -376,16 +390,17 @@ SetItem ( @[ $tick [ 0 ] == $serv [ 0 ] ~> $crit [ 0 ] = 1 ~> #rel ~> .K ] ) ~> 
         <active> ListItem(0) ListItem(1) ListItem(2) </active>
 
         <store>
-          (0 |-> (N:Int => ?_DISP:Int)) // disp
-          (1 |-> (N => ?_SERV:Int)) // serv
+          (0 |-> (N +Int 1 => ?_DISP:Int)) // disp
+          (1 |-> (N:Int => ?_SERV:Int)) // serv
           (2 |-> (0 => ?CRIT1)) // stat1
-          (3 |-> (_ => ?_TICK1)) // tick1
+          (3 |-> (N => ?_TICK1)) // tick1
           (4 |-> (0 => ?CRIT2)) // stat2
           (5 |-> (_ => ?_TICK2)) // tick2
         </store>
 
+    //requires D ==K S orBool D ==K S +Int 1
     ensures ?CRIT1 =/=K 2 orBool ?CRIT2 =/=K 2 // mutex
-[trusted] 
+//[trusted] 
 
 
 /*
