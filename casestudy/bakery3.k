@@ -167,7 +167,7 @@ module BAKERY3
         </store>
 
     //requires D ==K S orBool D ==K S +Int 1
-    ensures ?CRIT1 =/=K 2 orBool ?CRIT2 =/=K 2 // mutex
+    ensures ?CRIT1 =/=K 1 orBool ?CRIT2 =/=K 1 // mutex
 
 
   /* lemma */ 
@@ -228,7 +228,7 @@ module BAKERY3
         </store>
 
     //requires D ==K S orBool D ==K S +Int 1
-    ensures ?CRIT1 =/=K 2 orBool ?CRIT2 =/=K 2 // mutex
+    ensures ?CRIT1 =/=K 1 orBool ?CRIT2 =/=K 1 // mutex
 [trusted] 
 
   claim [bakery-mutex-lemma1b]:
@@ -283,7 +283,7 @@ module BAKERY3
         </store>
 
     //requires D ==K S orBool D ==K S +Int 1
-    ensures ?CRIT1 =/=K 2 orBool ?CRIT2 =/=K 2 // mutex
+    ensures ?CRIT1 =/=K 1 orBool ?CRIT2 =/=K 1 // mutex
 [trusted] 
 
   claim [bakery-mutex-lemma7a]:
@@ -341,7 +341,7 @@ SetItem ( @[ $tick [ 0 ] == $serv [ 0 ] ~> $crit [ 0 ] = 1 ~> #rel ~> .K ] ) ~> 
         </store>
 
     //requires D ==K S orBool D ==K S +Int 1
-    ensures ?CRIT1 =/=K 2 orBool ?CRIT2 =/=K 2 // mutex
+    ensures ?CRIT1 =/=K 1 orBool ?CRIT2 =/=K 1 // mutex
 //[trusted] 
 
   claim [bakery-mutex-lemma7b]:
@@ -399,7 +399,7 @@ SetItem ( @[ true ~> #rel ~> break ~> do :: atomic { $tick [ 0 ] = $disp [ 0 ] ;
         </store>
 
     //requires D ==K S orBool D ==K S +Int 1
-    ensures ?CRIT1 =/=K 2 orBool ?CRIT2 =/=K 2 // mutex
+    ensures ?CRIT1 =/=K 1 orBool ?CRIT2 =/=K 1 // mutex
 //[trusted] 
 
 
