@@ -340,7 +340,7 @@ SetItem ( @[ $tick [ 0 ] == $serv [ 0 ] ~> $crit [ 0 ] = $crit [ 0 ] + 1 ~> #rel
     ensures ?CRIT <=Int 1 // mutex
 //[trusted] 
 
-  claim [bakery-mutex-lemma7b]:
+  claim [bakery-mutex-wi]:
         <procs>
           <proc>... // controller
             <pid> -1 </pid>
