@@ -77,7 +77,7 @@ module BASIC
   syntax Msg ::= m(List) // list of values
                | "noMsg"
 
-  syntax Lock ::= Int | "#none"
+  syntax Lock ::= Int | "#none" | "#frozen" // frozen is added for #freeze
 
   syntax KItem ::= "null"
                  | lval(Id, Int) // vref
@@ -523,7 +523,6 @@ module PROMELA
   imports GOTO
 
   syntax Stmt ::= "stop"
-  syntax KItem ::= "#freeze" // for verification purposes
   //rule #freeze => .K // this has priority issue: it always happens first that the load rule etc.
 
   syntax K ::= spload(Bool, K) [function]
@@ -615,6 +614,42 @@ module PROMELA
     <k> .K </k>
   requires PID in PL
 */
+
+
+/* for freeze
+  rule [fire]:
+    <pid> PID </pid> <lock> LCK => PID </lock>
+    <k> ((SetItem(@[BS ~> K]) _:Set) ~> K')
+        => (effect(BS, PID') ~> K ~> K')
+    </k>
+    <env> ENV </env> <store> STR </store> <network> NET </network>
+    <nextPid> PID' </nextPid>
+    requires (LCK ==K #none orBool LCK ==K PID) // check lock
+             andBool isExec(BS, ENV, STR, NET, PID') ==K true
+*/
+
+
+  // same priority with fire -- regarded as a pseudo basic statement
+  // freeze by preventing other processes from loading
+  syntax KItem ::= "#freeze"
+  rule [freeze]:
+    <active> _PL => .List </active>
+    <lock> #none => #frozen </lock> 
+    <k> #freeze => .K </k>
+
+  rule [spload-freeze]:
+       <lock> #none </lock>
+       <proc>...
+         <pid> PID </pid>
+         <k> #freeze ...</k>
+    ...</proc>
+       <proc>...
+         <pid> -1 </pid>
+         <k> #normalize((ListItem(PID) => .List) _) </k>
+    ...</proc>
+    [priority(2)]
+
+
 
   rule [synch-init1]:
     <lock> #none </lock>
