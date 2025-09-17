@@ -116,7 +116,7 @@ module CONFIG
                   <store color="Salmon"> .Map </store>
                   <network color="Salmon"> .Map </network>
 
-                  <lock> #none </lock>
+                  <lock> -1:Lock </lock>
 
                   <active> .List:List </active>
 
@@ -166,6 +166,7 @@ module RUN // TODO: consider merging this module into INIT
     ...</proctype>
 
        <nextPid> I => I +Int 1 </nextPid>
+       <active> _:List (.List => ListItem(I)) </active>
 
   rule [done]: <k> #wait => .K ...</k> <k> #done => .K ...</k>
 
@@ -180,6 +181,8 @@ module INIT
 //  imports CONFIG
 
   rule S:Spec S':Spec => S ~> S'
+
+//  rule <pid> -1 </pid> <k> (S ; SL):Seq => (S ~> SL) ...</k>
 
   rule [proctype]:
        <k> proctype X ( DL ) { SL } => .K ...</k>
@@ -492,25 +495,12 @@ module LOAD // CONTROL-DECOMPOSITION or CONTROL-EFFECT as opposed GUARD-EFFECT
   rule load(true, BS:BasicStmt ~> K) => SetItem(@[ BS ~> K ])
   rule load(false, BS:BasicStmt ~> K) => load(true, BS ~> #rel ~> K)
   rule load(B, SL:Seq ~> K) => load(B, split(SL) ~> K)
-  //rule load(B, (S ; S'):Seq ~> K) => load(B, S ~> S' ~> K) // FIXME
-  //rule des(B, .Seq ~> K) => des(B, K) // FIXME
   rule load(true, atomic { SL } ~> K) => load(true, SL ~> K) // inner atomic
   rule load(false, atomic { SL } ~> K) => load(true, SL ~> #rel ~> K) // outermost atomic
   rule load(B, if (:: SL) OL fi ~> K) => load(B, SL ~> K) load(B, if OL fi ~> K)
   rule load(_, if .Optns fi ~> _) => .Set
   rule load(B, S:GotoStmt ~> K) => load(B, true ~> S ~> K)
   rule load(B, do OL od ~> K) => load(B, if OL fi ~> do OL od ~> K)
-
-  // no assumption on the 2nd arg
-/*
-  syntax K ::= desK(Bool, K) [function] // extension of des
-  rule desK(B, S ; SEQ:Seq ~> K) => des(B, S ~> SEQ ~> K) requires _:Goto :/=K S
-  rule desK(_, S:Goto ; SEQ ~> K) => S ~> SEQ ~> K
-  rule desK(B, .Seq ~> K) => desK(B, K)
-  rule desK(_, #rel ~> K) => (#rel ~> desK(false, K))
-  rule desK(_, .K) => .K
-  rule desK(B, K) => des(B, K) [owise]
-*/
 endmodule
 
 
@@ -523,7 +513,6 @@ module PROMELA
   imports GOTO
 
   syntax Stmt ::= "stop"
-  //rule #freeze => .K // this has priority issue: it always happens first that the load rule etc.
 
   syntax K ::= spload(Bool, K) [function]
   rule spload(B, SL:Seq) => spload(B, split(SL))
@@ -601,33 +590,10 @@ module PROMELA
 
 
 
-  // EXPERIMENTAL
   // TODO: global control for spload
   syntax KItem ::= #normalize(List) // TODO: maybe fix name to #spload
   syntax Bool ::= sploadable(KItem) [function]
   rule sploadable(S) => ((_:Stmt :=K S) orBool (_:Seq :=K S)) andBool (_:DeclStmt :/=K S)
-
-/*
-  rule [end]:
-    <active> PL => </active>
-    <pid> PID </pid>
-    <k> .K </k>
-  requires PID in PL
-*/
-
-
-/* for freeze
-  rule [fire]:
-    <pid> PID </pid> <lock> LCK => PID </lock>
-    <k> ((SetItem(@[BS ~> K]) _:Set) ~> K')
-        => (effect(BS, PID') ~> K ~> K')
-    </k>
-    <env> ENV </env> <store> STR </store> <network> NET </network>
-    <nextPid> PID' </nextPid>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-             andBool isExec(BS, ENV, STR, NET, PID') ==K true
-*/
-
 
   // same priority with fire -- regarded as a pseudo basic statement
   // freeze by preventing other processes from loading
@@ -651,16 +617,16 @@ module PROMELA
 
 
 
-  rule [synch-init1]:
+  rule [spload-init1]:
     <lock> #none </lock>
     <active> PL </active> // list of active procs in increasing order
     <pid> -1 </pid> // global controller
     <k> .K => #normalize(PL) </k> 
   [priority(1)] // IMPORTANT: this should happen before anything else!
 
-  rule [synch-init2]:
+  rule [spload-init2]:
     <lock> PID => #none </lock>
-    <active> PL </active> // list of active procs in increasing order
+    <active> PL </active> // ordered list of active procs
     <proc>...
       <pid> PID </pid>
       <k> #rel => .K ...</k>
@@ -670,6 +636,20 @@ module PROMELA
       <k> #normalize(.List => PL) </k>
  ...</proc>
   [priority(1)] // IMPORTANT: this should happen before anything else!
+
+  rule [spload-init3]: // endof decl
+    <lock> #none </lock>
+    <active> PL </active> // ordered list of active procs
+    <proc>...
+      <pid> PID </pid>
+      <k> KI:KItem ...</k>
+ ...</proc>
+    <proc>...
+      <pid> -1 </pid>
+      <k> #normalize(.List => PL) </k>
+ ...</proc>
+  requires sploadable(KI)
+  [priority(100)] // IMPORTANT: this should happen before anything else!
  
 
   rule [spload-true]:
