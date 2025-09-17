@@ -711,7 +711,7 @@ module PROMELA
     [priority(2)]
 
 
-  rule [spload-atomic]:
+  rule [spload-atomic]: // spload while in atomic block
        <lock> PID:Int </lock>
        <proc>...
          <pid> PID </pid>
