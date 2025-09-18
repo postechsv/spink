@@ -640,16 +640,17 @@ module PROMELA
   rule [spload-init3]: // endof decl
     <lock> #none </lock>
     <active> PL </active> // ordered list of active procs
-    <proc>...
-      <pid> PID </pid>
-      <k> KI:KItem ...</k>
- ...</proc>
+    <k> KI:KItem ...</k>
     <proc>...
       <pid> -1 </pid>
       <k> #normalize(.List => PL) </k>
  ...</proc>
   requires sploadable(KI)
-  [priority(100)] // IMPORTANT: this should happen before anything else!
+  [priority(100)] 
+  // this rules is required because after decl, if there is no following #rel
+  // then #rel cannot signal #normalize to initialize.
+  // the priority is set low, to refer to situations where
+  // there exists a loadable term, but normalizer is not ready
  
 
   rule [spload-true]:
