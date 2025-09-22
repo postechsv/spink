@@ -70,7 +70,8 @@ module BASIC
 
   syntax Value ::= Chan
 
-  syntax Chan ::= ch(Int) | hs(Int) // ch_id as a value // the name chan is already reserved for typename
+  // ch: bch in the paper / hs: hch in the paper
+  syntax Chan ::= ch(Int) | hs(Int)
   syntax Loc ::= loc(Int)
 
   syntax Queue ::= mq(Int, List) // capacity, list of messages
@@ -202,13 +203,9 @@ module INIT
   rule N...M |-> _ => .Map  requires N >Int M
   rule N...M |-> K => N |-> K (N +Int 1)...M |-> K  requires N <=Int M
 
-  // auxiliary func for initializing loc
-  syntax Map ::= "lval" Id "::" Int "..." Int "|->" "loc" Int "..." Int [function]
-  rule lval _ :: N...M |-> loc I...J => .Map  requires N >Int M orBool I >Int J
-  rule lval X :: N...M |-> loc I...J => (lval(X,N) |-> loc(I)) (lval X :: (N +Int 1)...M |-> loc (I +Int 1)...J)  requires N <=Int M andBool I <=Int J
 
-  // TODO: auxiliary func for initializing bch
-  // TODO: auxiliary func for initializing hch
+
+
 
   // decl desugaring rules
   rule int X[I] => int X[I] = 0          rule int X => int X[1] = 0
@@ -219,6 +216,12 @@ module INIT
   // TODO: rule T:Type X = E:Expr => #eval(E) ~> T X[1] = HOLE requires _:Value :=/K E
   // TODO: rule #eval(V:Value) ~> T X[1] = (_ => V)
 
+
+  // auxiliary func for initializing loc
+  syntax Map ::= "lval" Id "::" Int "..." Int "|->" "loc" Int "..." Int [function]
+  rule lval _ :: N...M |-> loc I...J => .Map  requires N >Int M orBool I >Int J
+  rule lval X :: N...M |-> loc I...J => (lval(X,N) |-> loc(I)) (lval X :: (N +Int 1)...M |-> loc (I +Int 1)...J)  requires N <=Int M andBool I <=Int J
+
   rule [decl-prim]:
     <pid> PID </pid>
     <k> (_:PType X:Id[I:Int] = V:Value) => .K ...</k>
@@ -228,9 +231,32 @@ module INIT
     <nextLoc> J => J +Int I </nextLoc>
     requires I >Int 0
 
-  // TODO: rule [decl-uch]
-  // TODO: rule [decl-bch]
-  // TODO: rule [decl-hch]
+  // auxiliary func for initializing bch
+  syntax Map ::= "lval" Id "::" Int "..." Int "|->" "bch" Int "..." Int [function]
+  rule lval _ :: N...M |-> bch I...J => .Map  requires N >Int M orBool I >Int J
+  rule lval X :: N...M |-> bch I...J => (lval(X,N) |-> ch(I)) (lval X :: (N +Int 1)...M |-> bch (I +Int 1)...J)  requires N <=Int M andBool I <=Int J
+
+  rule [decl-bch]:
+    <pid> PID </pid>
+    <k> (chan X:Id[I:Int] = [ N:Int ] of { _ }) => .K ...</k>
+    <env> _:Map (.Map => lval X :: 0 ...(I -Int 1) |-> bch J...(J +Int I -Int 1)) </env> 
+    <local> _:Set (.Set => #if PID ==K -1 #then .Set #else SetItem(X) #fi) </local>
+    <network> _:Map (.Map => J...(J +Int I -Int 1) |-> mq(N,.List)) </network>
+    <nextBCid> J => J +Int I </nextBCid>
+    requires I >Int 0 andBool N >Int 0
+
+  // auxiliary func for initializing hch
+  syntax Map ::= "lval" Id "::" Int "..." Int "|->" "hch" Int "..." Int [function]
+  rule lval _ :: N...M |-> hch I...J => .Map  requires N >Int M orBool I >Int J
+  rule lval X :: N...M |-> hch I...J => (lval(X,N) |-> hs(I)) (lval X :: (N +Int 1)...M |-> hch (I +Int 1)...J)  requires N <=Int M andBool I <=Int J
+
+  rule [decl-hch]:
+    <pid> PID </pid>
+    <k> (chan X:Id[I:Int] = [ 0 ] of { _ }) => .K ...</k>
+    <env> _:Map (.Map => lval X :: 0 ...(I -Int 1) |-> hch J...(J +Int I -Int 1)) </env> 
+    <local> _:Set (.Set => #if PID ==K -1 #then .Set #else SetItem(X) #fi) </local>
+    <nextHCid> J => J +Int I </nextHCid>
+    requires I >Int 0
 endmodule
 
 module EXPRESSION
@@ -577,7 +603,7 @@ module PROMELA
     <network> NET </network>
     requires (LCK ==K #none orBool LCK ==K PID1 orBool LCK ==K PID2) // check lock
              andBool eval(X1 [ E1 ], ENV1, STR, NET) ==HChan eval(X2 [ E2 ], ENV2, STR, NET) // check HChan eq
-             // andBool match(EL,AL)
+             andBool matchMsg(EL2, evalList(EL1, ENV1, STR, NET))  // match(EL,AL)
 
   syntax Bool ::= Value "==HChan" Value [function]
   rule hs(I) ==HChan hs(I) => true
