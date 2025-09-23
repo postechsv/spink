@@ -1,9 +1,10 @@
-int x = 0
+int x[1] = 0
+int tmp[1] = 0
 
 active proctype parent() {
-  run child() >= 0
+  tmp[0] = run child()
 }
 
 proctype child() {
-  x = 42
+  x[0] = 42
 }

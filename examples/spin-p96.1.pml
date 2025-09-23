@@ -4,3 +4,5 @@
 int state[1] = 1
 active proctype A() { (state[0] == 1) ; state[0] = state + 1 }
 active proctype B() { (state[0] == 1) ; state[0] = state - 1 }
+
+// possible states for state[0] = 0,1,2

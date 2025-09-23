@@ -111,7 +111,7 @@ module BAKERY-2PROCS
 
 
 
-  claim [bakery2-mutex-ii]:
+  claim [bakery2-mutex-wait-wait]:
         <procs>
           <proc>... // controller
             <pid> -1 </pid>
@@ -167,7 +167,7 @@ module BAKERY-2PROCS
 //  [trusted]
 
 
-  claim [bakery2-mutex-iw]:
+  claim [bakery2-mutex-wait-enter]:
         <procs>
           <proc>... // controller
             <pid> -1 </pid>
@@ -222,7 +222,7 @@ SetItem ( @[ $tick [ 0 ] == $serv [ 0 ] ~> $crit [ 0 ] = $crit [ 0 ] + 1 ~> #rel
     ensures ?CRIT <=Int 1 // mutex
 //[trusted] 
 
-  claim [bakery-mutex-wi]:
+  claim [bakery-mutex-enter-wait]:
         <procs>
           <proc>... // controller
             <pid> -1 </pid>
