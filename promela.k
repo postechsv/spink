@@ -204,9 +204,6 @@ module INIT
   rule N...M |-> K => N |-> K (N +Int 1)...M |-> K  requires N <=Int M
 
 
-
-
-
   // decl desugaring rules
   rule int X[I] => int X[I] = 0          rule int X => int X[1] = 0
   rule bool X[I] => bool X[I] = false    rule bool X => bool X[1] = false
@@ -310,6 +307,7 @@ module EXPRESSION
   // evalList - FIXME eval with brackets e.g. c ! (1 + 1) , (1 + 2) doesn't work
   //rule eval(( E:Expr ), ENV, STR, NET) => eval(E, ENV, STR, NET)
   syntax List ::= evalList(Exprs, Map, Map, Map) [function]
+  rule evalList(.Exprs, _, _, _) => .List
   rule evalList((E , E' , EL), ENV, STR, NET) => ListItem(eval(E, ENV, STR, NET)) evalList((E', EL), ENV, STR, NET)
   rule evalList((E , .Exprs), ENV, STR, NET) => ListItem(eval(E, ENV, STR, NET))
 
@@ -364,8 +362,8 @@ module GOTO
   syntax KItem ::= gotoCtx(Bool, K) // Bool indicates wherether K is in an atomic block
 
   // goto
-  rule <lock> _LCK => #if B #then PID #else #none #fi </lock>
-       <pid> PID </pid> // acquire
+  rule <lock> LCK => #if B #then LCK #else #none #fi </lock>
+       //<pid> PID </pid> // acquire
        <name> P </name>
        <k> (goto L ~> _) => K </k>
        <proctype>...
@@ -468,6 +466,9 @@ module FIRE // BASICSTMT
   rule isExec(X [ E ] ? EL, ENV, STR, NET, _)
     => eval(X [ E ] ? [ EL ], ENV, STR, NET) ==K true // Buf Recv
 
+  /* normalize run params */
+  rule <k> #run(X, EL:Exprs) => #run(X, evalList(EL, ENV, STR, NET)) ...</k>
+       <env> ENV </env> <store> STR </store> <network> NET </network>
 
   /* Basic-Effect Decomposition */  
   syntax K ::= effect(BasicStmt, Int) [function]
@@ -544,30 +545,6 @@ module PROMELA
   rule spload(B, SL:Seq) => spload(B, split(SL))
   rule spload(B, S:Stmt ~> K) => load(B, S) ~> K requires (_:DeclStmt :/=K S)
   rule spload(_, K) => K [owise]
-
-// original spload: uncomment this block to rollback
-/*
-  rule [spload]:
-       <pid> PID </pid> <lock> LCK </lock>
-       <k> SL:Seq => spload(PID ==K LCK, SL) ...</k>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-    [priority(151)]
-
-
-  rule [split]:
-       <pid> PID </pid> <lock> LCK </lock>
-       <k> SL:Seq => split(SL) ...</k>
-    requires (LCK ==K #none orBool LCK ==K PID) // check lock
-    [priority(152)]
-
-
-  rule [load]:
-    <pid> PID </pid> <lock> LCK </lock>
-    <k> S:Stmt => load(PID ==K LCK, S) ...</k>
-    requires (_:GotoStmt :/=K S) andBool (_:DeclStmt :/=K S)
-             //andBool (LCK ==K #none orBool LCK ==K PID) // this cond should not be here
-  [priority(153)]
-*/
 
   rule [fire]:
     <pid> PID </pid> <lock> LCK => PID </lock>
