@@ -1,0 +1,13 @@
+
+<coverage line-rate="0.5275229357798165" branch-rate="0.5166666666666667" version="1.9" timestamp="1762596057">
+  <sources>
+    <source>promela.k</source>
+  </sources>
+  <packages>
+    <package name="" line-rate="0.5275229357798165" branch-rate="0.5166666666666667" complexity="240.0">
+      <classes>
+        
+      </classes>
+    </package>
+  </packages>
+</coverage>
