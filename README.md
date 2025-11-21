@@ -1,4 +1,5 @@
-# Spink: A Formal Executable Semantics of PROMELA
+# SpinK: A Formal Executable Semantics of PROMELA in K
+<img src="./spink.png", height="100px", width="100px">
 
 ## kompile
 ```
