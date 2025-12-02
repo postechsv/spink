@@ -22,9 +22,10 @@ kprove casestudy/spec.k --verbose
 ```
 pip3 install kframework
 kompile promela.k --backend llvm --coverage // currently, haskell is not supported for coverage
-krun example/test_1.pml -d promela-kompiled // generates promela-kompiled/(test_id)_coverage.txt
-...
-krun example/test_n.pml -d promela-kompiled // generates promela-kompiled/(test_id)_coverage.txt
+// krun example/test_1.pml -d promela-kompiled // generates promela-kompiled/(test_id)_coverage.txt
+// ...
+//krun example/test_n.pml -d promela-kompiled // generates promela-kompiled/(test_id)_coverage.txt
+for f in examples/*.pml; do echo "=== running $f ==="; krun -d promela-kompiled "$f"; done
 python3 coverage.py // aggregates all promela-kompiled/*_coverage.txt and generates coverage.xml
 cat coverage.xml
 ```

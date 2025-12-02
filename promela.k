@@ -10,7 +10,7 @@ module PROMELA-SYNTAX
   syntax Proc ::=  Active "proctype" Id "(" Decls ")" "{" Seq "}"
                  | "proctype" Id "(" Decls ")" "{" Seq "}"
 
-  syntax Active ::= "active" | "active" "[" Const "]"
+  syntax Active ::= "active" | "active" "[" Int "]"
 
   syntax Decl ::= Type Ivar
   syntax Decls ::= List{Decl, ";"} // this often causes ambiguity w/ Seq
@@ -71,7 +71,7 @@ module BASIC
   syntax Value ::= Chan
 
   // ch: bch in the paper / hs: hch in the paper
-  syntax Chan ::= ch(Int) | hs(Int)
+  syntax Chan ::= ch(Int) | hs(Int) | "uch"
   syntax Loc ::= loc(Int)
 
   syntax Queue ::= mq(Int, List) // capacity, list of messages
@@ -198,6 +198,15 @@ module INIT
   rule <k> active proctype X ( DL ) { SL } => (proctype X ( DL ) { SL } ~> #run(X, .List)) ...</k>
   [priority(0)]
 
+  syntax KItem ::= #repeat(Int, KItem)
+  rule #repeat(N, KI) => (KI ~> #repeat(N -Int 1, KI)) requires N >Int 0
+  rule #repeat(N, _KI) => .K requires N <=Int 0
+
+  rule <k> (active [ N ]):Active proctype X ( DL ) { SL } => (proctype X ( DL ) { SL } ~> #repeat(N, #run(X, .List))) ...</k>
+  [priority(0)]
+
+
+
   // auxiliary func for initializing store
   syntax Map ::= Int "..." Int "|->" K [function]
   rule N...M |-> _ => .Map  requires N >Int M
@@ -253,6 +262,18 @@ module INIT
     <env> _:Map (.Map => lval X :: 0 ...(I -Int 1) |-> hch J...(J +Int I -Int 1)) </env> 
     <local> _:Set (.Set => #if PID ==K -1 #then .Set #else SetItem(X) #fi) </local>
     <nextHCid> J => J +Int I </nextHCid>
+    requires I >Int 0
+
+  // auxiliary func for initializing uch
+  syntax Map ::= "lval" Id "::" Int "..." Int "|->" "uch" [function]
+  rule lval _ :: N...M |-> uch => .Map  requires N >Int M
+  rule lval X :: N...M |-> uch => (lval(X,N) |-> uch) (lval X :: (N +Int 1)...M |-> uch) requires N <=Int M
+
+  rule [decl-uch]:
+    <pid> PID </pid>
+    <k> chan X:Id[I:Int] => .K ...</k>
+    <env> _:Map (.Map => lval X :: 0 ...(I -Int 1) |-> uch) </env> 
+    <local> _:Set (.Set => #if PID ==K -1 #then .Set #else SetItem(X) #fi) </local>
     requires I >Int 0
 endmodule
 
