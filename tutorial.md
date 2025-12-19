@@ -63,16 +63,21 @@ end:
 - K is based on rewriting logic.
     - A program's state is represented as a configuration.
     - A transition system is defined using rewrite rules between two configurations.
-- example: assignment
+- example configuration for IMP
+- example rewrite rules for IMP
+    - assignment, lookup, etc
+
+
+### Operational Semantics in K
+- example rule: assignment
     - (show rule side-by-side with mathematical notation and xml-like syntax)
-- example trace
+- example trace: assignment
     - (show example trace of a simple PROMELA program)
 - remark
-    - modularity:
-    - executability:
-
-### K Examples
-- short tutorial
+    - concurrency: via nondeterministic application of rules
+    - modularity: irrelevant cells are added naturally
+    - executability: via step-by-step applying rules from initial configuration
+    
 
 ## Part III: Challenge
 - Promela codes
