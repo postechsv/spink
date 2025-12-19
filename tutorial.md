@@ -60,6 +60,16 @@ end:
     - Obtain a deductive verifier for PROMELA **for free**.
 
 ### K Semantics
+- K is based on rewriting logic.
+    - A program's state is represented as a configuration.
+    - A transition system is defined using rewrite rules between two configurations.
+- example: assignment
+    - (show rule side-by-side with mathematical notation and xml-like syntax)
+- example trace
+    - (show example trace of a simple PROMELA program)
+- remark
+    - modularity:
+    - executability:
 
 ### K Examples
 - short tutorial
