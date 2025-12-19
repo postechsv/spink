@@ -63,7 +63,7 @@ end:
 - K is based on rewriting logic.
     - A program's state is represented as a configuration (a K cell).
     - A transition system is defined using rewrite rules (K rules) between two configurations.
-- compuations are explicit **data**, modeled as **Kcontinuations**.
+- compuations are explicit **data**, modeled as **K continuations**.
     - example of K continuations
 - example configuration for IMP
 - example rewrite rules for IMP
@@ -82,18 +82,22 @@ end:
 
 ## Part III: Defining PROMELA Semantics in K
 ### PROMELA in K
-- Many constructs in PROMELA can be naturally modeled in K.
-    - e.g., assignments, channetc
-- challenges:
-    - granularity
-    - nested guards
-    - interference
+- PROMELA is a **high-level** concurrncy **modeling** language with **nondeterminism** that looks like an **imperative** language.
+- This makes PROMELA semantics tricky to define in K:
+    - granularity : **high-level** features
+    - nested guards : **imperative** syntax + **declarative** semantics
+    - interference : synchronization via handshakes
+- Goal: A K semantics that resolves these challenges in an **uniform** and **modular** way.
 
 ### Challenge 1: Granularity
+- Mutual exclusion for semantic rules
 
 ### Challenge 2: Nested Guards
+- guards has no imperative interpretation
+- guards are **declarative** in nature
 
 ### Challenge 3: Interference
+- Inner concurrency vs Outer concurrency
 
 ## Part IV:Solution
 - Load-and-Fire
