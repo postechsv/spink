@@ -82,10 +82,11 @@ end:
 
 ## Part III: Defining PROMELA Semantics in K
 ### PROMELA in K
+- PROMELA supports **high-level** **modeling** features for **control-flow**, **concurrency** and **nondeterminism**.
 - PROMELA supports **high-level** **modeling** features with interplay between **concurrency** and **nondeterminism** that looks **imperative**.
-- This makes PROMELA semantics tricky to define in K:
+- When these features are combined, it poses **challenges** for defining formal semantics in K:
     - granularity : **high-level** features
-    - nested guards : **imperative** syntax + **declarative** semantics
+    - nested guards : **declarative** control-flow
     - interference : synchronization under **concurrency** and **nondeterminism**
 - Goal: A K semantics that resolves these challenges in an **uniform** and **modular** way (non-ad-hoc way).
 
