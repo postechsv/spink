@@ -99,8 +99,9 @@ end:
 ### Challenge 3: Interference
 - Inner concurrency vs Outer concurrency
 
-## Part IV:Solution
-- Load-and-Fire
+## Semantic Patterns
+### Fire-and-Release
+### Load-and-Fire
 
 ## Part V: Concrete Examples
 - Sec 4,5 main
