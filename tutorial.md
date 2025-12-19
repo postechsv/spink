@@ -82,12 +82,12 @@ end:
 
 ## Part III: Defining PROMELA Semantics in K
 ### PROMELA in K
-- PROMELA is a **high-level** concurrncy **modeling** language with **nondeterminism** that looks like an **imperative** language.
+- PROMELA supports **high-level** **modeling** features with interplay between **concurrency** and **nondeterminism** that looks **imperative**.
 - This makes PROMELA semantics tricky to define in K:
     - granularity : **high-level** features
     - nested guards : **imperative** syntax + **declarative** semantics
-    - interference : synchronization via handshakes
-- Goal: A K semantics that resolves these challenges in an **uniform** and **modular** way.
+    - interference : synchronization under **concurrency** and **nondeterminism**
+- Goal: A K semantics that resolves these challenges in an **uniform** and **modular** way (non-ad-hoc way).
 
 ### Challenge 1: Granularity
 - Mutual exclusion for semantic rules
@@ -106,3 +106,6 @@ end:
 - Sec 4,5 main
 
 ## Part VI: Case Study
+### All-Path Reachability Logic
+
+### Bakery Algorithm
