@@ -4,13 +4,29 @@
 
 ### PROMELA
 - PROMELA is the input language for SPIN model checker.
+    - ACM Software System Award 2001 (cite)
 - PROMELA & SPIN tandem is widely used for specifying & verifying concurrent systems.
-    - e.g., cryptographic protocols, LINUX FUTEX, Flight Guidence Systems
-- PORMELA has a similar syntax to C:
+    - e.g., cryptographic protocols (cite), LINUX FUTEX (cite), Flight Guidence Systems (cite)
+- PROMELA has a imperative-style syntax, similar to C:
     - e.g., variable assignment, goto statements, control structures (if, do, etc.)
+```
+    int x;
+    x = 5;
+    if
+    :: x > 0 -> x = x - 1;
+    :: else -> goto end;
+    fi;
+end:
+```
 - However PROMELA is a high-level **modeling language**, unlike C.
     - It abstracts away low-level implementation details.
-    - It is not suitable for direct implementation of systems.
+    - e.g., atomic, message-passing
+```
+    atomic {
+        x = x + 1;
+        y = y + 1;
+    }
+```
 
 ### Limitation of SPIN
 
