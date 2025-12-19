@@ -29,6 +29,13 @@ end:
 ```
 
 ### Limitation of SPIN
+- The SPIN model checker takes PROMELA code as input and performs **automatic** verification.
+- SPIN supports highly efficient verification techniques:
+    - Partial-order reduction
+    - Bitstate hashing
+- However, SPIN is based on **explicit state exploration**
+    - It cannot verify properties that require reasoning about infinite state spaces or infinite data.
+    - Other verification techniques (e.g., deductive verification) are not directly supported.
 
 ### Deductive Verification
 
