@@ -37,7 +37,14 @@ end:
     - It cannot verify properties that require reasoning about infinite state spaces or infinite data.
     - Other verification techniques (e.g., deductive verification) are not directly supported.
 
-### Deductive Verification
+### Deductive Verification of PROMELA
+- Deductive verification is a complementary approach to model checking.
+    - It uses logical reasoning to prove properties about programs.
+- Deductive verification can handle infinite state spaces and data.
+- However, applying deductive verification to PROMELA is challenging:
+    - PROMELA's semantics are complex and not formally defined in a way that supports deductive reasoning.
+    - Existing tools for deductive verification do not support PROMELA directly.
+- To address this, we propose using the K Framework to define formal semantics for PROMELA.
 
 ## Part II: K Framework
 - why K
