@@ -47,7 +47,18 @@ end:
 - To address this, we propose using the K Framework to define formal semantics for PROMELA.
 
 ## Part II: K Framework
-- why K
+### K Framework
+- A Language Agnostic Framework for Formal Semantics (rosu)
+- K allows defining formal semantics for programming languages in a modular way.
+    - e.g. C, Java, JavaScript, Python, Rust, etc.
+- K semantics can be used to automatically generate tools for:
+    - e.g., parsers, interpreters, model checkers, symbolic execution engines, etc.
+    - from a single semantic definition.
+    - (add diagram)
+
+### K Semantics
+
+### K Examples
 - short tutorial
 
 ## Part III: Challenge
