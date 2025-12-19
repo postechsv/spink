@@ -1,21 +1,24 @@
 # SpinK Tutorial
 
-## Introduction
-- promela - widely used
-- limitation - model checking
-- motivation - why deductive verification
+## Part I: Introduction
 
-## K Framework
+### PROMELA
+
+### Limitation of SPIN
+
+### Deductive Verification
+
+## Part II: K Framework
 - why K
 - short tutorial
 
-## Challenge
+## Part III: Challenge
 - Promela codes
 
-## Solution
+## Part IV:Solution
 - Load-and-Fire
 
-## Concrete Examples
+## Part V: Concrete Examples
 - Sec 4,5 main
 
-## Case Study
+## Part VI: Case Study
