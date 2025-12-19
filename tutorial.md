@@ -49,8 +49,8 @@ end:
 ## Part II: K Framework
 ### K Framework
 - A Language Agnostic Framework for Formal Semantics (rosu)
-- K allows defining formal semantics for programming languages in a **modular** way.
-    - e.g. C, Java, JavaScript, Python, Rust, etc.
+- Many success stories:
+    - e.g. C, Java, JavaScript, Ethereum etc.
 - K semantics can be used to automatically generate tools for:
     - e.g., parsers, interpreters, model checkers, symbolic execution engines, etc.
     - from a single semantic definition.
@@ -61,12 +61,13 @@ end:
 
 ### K Semantics
 - K is based on rewriting logic.
-    - A program's state is represented as a configuration.
-    - A transition system is defined using rewrite rules between two configurations.
+    - A program's state is represented as a configuration (a K cell).
+    - A transition system is defined using rewrite rules (K rules) between two configurations.
+- compuations are explicit **data**, modeled as **Kcontinuations**.
+    - example of K continuations
 - example configuration for IMP
 - example rewrite rules for IMP
     - assignment, lookup, etc
-
 
 ### Operational Semantics in K
 - example rule: assignment
@@ -75,12 +76,24 @@ end:
     - (show example trace of a simple PROMELA program)
 - remark
     - concurrency: via nondeterministic application of rules
-    - modularity: irrelevant cells are added naturally
+    - modularity: easy to extend the lanugage with new constructs (e.g., output cell)
     - executability: via step-by-step applying rules from initial configuration
-    
 
-## Part III: Challenge
-- Promela codes
+
+## Part III: Defining PROMELA Semantics in K
+### PROMELA in K
+- Many constructs in PROMELA can be naturally modeled in K.
+    - e.g., assignments, channetc
+- challenges:
+    - granularity
+    - nested guards
+    - interference
+
+### Challenge 1: Granularity
+
+### Challenge 2: Nested Guards
+
+### Challenge 3: Interference
 
 ## Part IV:Solution
 - Load-and-Fire
