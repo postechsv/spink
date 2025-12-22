@@ -94,6 +94,18 @@ end:
 - Example: c ? x, y
     - channel receive operation
     - behavior: check, dequeue, assign x, assign y
+- What if..
+```
+active proctype p() {
+    ...
+    c ? x, y;
+    ...
+}
+active proctype q() {
+    ...
+    c ? x, y;
+    ...
+}
 
 ### Mutual exclusion for semantic rules
 
