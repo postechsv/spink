@@ -106,6 +106,7 @@ active proctype q() {
     c ? x, y;
     ...
 }
+```
 
 ### Mutual exclusion for semantic rules
 
