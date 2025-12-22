@@ -128,6 +128,14 @@ active proctype p() {
 
 ### Challenge 3: Interference
 - Inner concurrency vs Outer concurrency
+```
+active proctype p1() {
+  if :: c ! 1 :: y = 1 fi 
+}
+active proctype p2() {
+  if :: y = 1 :: c ? x fi 
+}
+```
 
 ## Semantic Patterns
 ### Fire-and-Release
