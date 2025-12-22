@@ -92,7 +92,7 @@ end:
 
 ### Challenge 1: Granularity
 - Example: c ? x, y
-    - channel receive (ATOMIC) operation
+    - basic statement -> ATOMIC operation
     - behavior: check, dequeue, assign x, assign y
     - design choices:
         - coarse-grained: single K rule for entire operation (bad modularity)
@@ -101,7 +101,6 @@ end:
     - separate K rules for check, dequeue, assign
     - p: check, q: check, p: dequeue
     - q: check becomes invalid!
-    - 
 ```
 active proctype p() {
     ...
@@ -115,11 +114,17 @@ active proctype q() {
 }
 ```
 
-### Mutual exclusion for semantic rules
 
 ### Challenge 2: Nested Guards
 - guards has no imperative interpretation
 - guards are **declarative** in nature
+```
+active proctype p() {
+  if
+    :: A
+    :: do :: B :: C od ; D
+}
+```
 
 ### Challenge 3: Interference
 - Inner concurrency vs Outer concurrency
