@@ -90,7 +90,7 @@ end:
     - interference : synchronization under **concurrency** and **nondeterminism**
 - Goal: A K semantics that resolves these challenges in an **uniform** and **modular** way (non-ad-hoc way).
 
-### Challenge 1: Granularity
+### Challenge 1: Basic Statements are not so Basic!
 - Example: c ? x, y
     - basic statement -> ATOMIC operation
     - behavior: check, dequeue, assign x, assign y
