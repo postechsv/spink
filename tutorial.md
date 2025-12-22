@@ -91,7 +91,11 @@ end:
 - Goal: A K semantics that resolves these challenges in an **uniform** and **modular** way (non-ad-hoc way).
 
 ### Challenge 1: Granularity
-- Mutual exclusion for semantic rules
+- Example: c ? x, y
+    - channel receive operation
+    - behavior: check, dequeue, assign x, assign y
+
+### Mutual exclusion for semantic rules
 
 ### Challenge 2: Nested Guards
 - guards has no imperative interpretation
