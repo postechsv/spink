@@ -126,7 +126,7 @@ active proctype p() {
 }
 ```
 
-### Challenge 3: Interference
+### Challenge 3: Nondeterminism may Interfere across Processes
 - Inner concurrency vs Outer concurrency
 ```
 active proctype p1() {
