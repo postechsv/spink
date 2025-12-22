@@ -92,9 +92,16 @@ end:
 
 ### Challenge 1: Granularity
 - Example: c ? x, y
-    - channel receive operation
+    - channel receive (ATOMIC) operation
     - behavior: check, dequeue, assign x, assign y
+    - design choices:
+        - coarse-grained: single K rule for entire operation (bad modularity)
+        - fine-grained: multiple K rules for each functionality
 - What if..
+    - separate K rules for check, dequeue, assign
+    - p: check, q: check, p: dequeue
+    - q: check becomes invalid!
+    - 
 ```
 active proctype p() {
     ...
