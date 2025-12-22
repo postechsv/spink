@@ -104,12 +104,12 @@ end:
 ```
 active proctype p() {
     ...
-    c ? x, y;
+    c ? x, y; // <- currently executing
     ...
 }
 active proctype q() {
     ...
-    c ? x, y;
+    c ? x, y; // <- currently executing
     ...
 }
 ```
