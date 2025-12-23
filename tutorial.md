@@ -81,6 +81,18 @@ end:
 
 
 ## Part III: Defining PROMELA Semantics in K
+### Semantics of PROMELA
+- A PROMELA program models a system of concurrent processes
+    - each process's behavior is given by a sequence of statements
+- Two levels of Statements
+    - basic statements: defines atomic actions
+        - e.g.,assignment, channel send/receive, etc.
+    - control statements: determines which action comes after another (control-flow)
+        - e.g., if, do, etc.
+- Enabledness (= Executability)
+- An execution of a PROMELA program is a sequence of basic statements
+    - (example code: producer-consumer)
+
 ### PROMELA in K
 - PROMELA supports **high-level** **modeling** features for **control-flow**, **concurrency** and **nondeterminism**.
 - PROMELA supports **high-level** **modeling** features with interplay between **concurrency** and **nondeterminism** that looks **imperative**.
@@ -136,7 +148,7 @@ active proctype p() {
   if ; D
 }
 ```
-- A naive "structural" rules (i.e., branch step-by-step) won't work:
+- A naive "structural" K rules (i.e., branch step-by-step) won't work:
     - **syntactically**, `if` comes before `do`
     - **semantically**, `do` comes before `if` (`if`'s enabledness depends on `do`'s enabledness) 
 - How?
