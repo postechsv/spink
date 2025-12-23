@@ -150,6 +150,8 @@ active proctype p() {
 
 ### Challenge 3: "Entangled" Nondeterminism
 - Example code: cross-process interference
+    - when p1 chooses the first, p2 is forced to choose the second (handshake should occur)
+    - when p1 chooses the second, p2 is forced to choose the first (handshake cannot occur)
 ```
 active proctype p1() {
   if :: c ! 1 :: y = 1 fi 
