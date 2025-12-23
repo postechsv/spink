@@ -92,6 +92,8 @@ end:
 
 ### Challenge 1: Basic Statements are not so Basic!
 - Example: c ? x, y
+    - basic statement -> ATOMIC operation
+    - behavior: check, dequeue, assign x, assign y
 ```
 active proctype p() {
     ...
@@ -104,8 +106,6 @@ active proctype q() {
     ...
 }
 ```
-    - basic statement -> ATOMIC operation
-    - behavior: check, dequeue, assign x, assign y
 - How to define K rules for this?
     - A single K rule would work..
     - but harms readability and modularity (c.f., assignment)
