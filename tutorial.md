@@ -92,15 +92,6 @@ end:
 
 ### Challenge 1: Basic Statements are not so Basic!
 - Example: c ? x, y
-    - basic statement -> ATOMIC operation
-    - behavior: check, dequeue, assign x, assign y
-- How to define K rules for this?
-    - A single K rule would work..
-    - but harms readability and modularity (c.f., assignment)
-- What if..
-    - separate K rules for check, dequeue, assign
-    - p: check, q: check, p: dequeue
-    - q: check becomes invalid!
 ```
 active proctype p() {
     ...
@@ -113,6 +104,15 @@ active proctype q() {
     ...
 }
 ```
+    - basic statement -> ATOMIC operation
+    - behavior: check, dequeue, assign x, assign y
+- How to define K rules for this?
+    - A single K rule would work..
+    - but harms readability and modularity (c.f., assignment)
+- What if..
+    - separate K rules for check, dequeue, assign
+    - p: check, q: check, p: dequeue
+    - q: check becomes invalid!
 - **Granularity mismatch between PROMELA statements and K rules!**
 
 
