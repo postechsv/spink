@@ -90,7 +90,7 @@ end:
     - interference : synchronization under **concurrency** and **nondeterminism**
 - Goal: A K semantics that resolves these challenges in an **uniform** and **modular** way (non-ad-hoc way).
 
-### Challenge 1: Not-So-Basic Basic Statements
+### Challenge 1: "Not-So-Basic" Basic Statements
 - Example: c ? x, y
     - basic statement -> ATOMIC operation
     - behavior: check, dequeue, assign x, assign y
@@ -116,7 +116,7 @@ active proctype q() {
 - **Granularity mismatch between PROMELA statements and K rules!**
 
 
-### Challenge 2: Schrödinger's Guards
+### Challenge 2: "Schrödinger's" Guards
 - Example code: nested nondeterminism
 ```
 // usual style
@@ -148,7 +148,7 @@ active proctype p() {
     - opening a box <-> commiting to a branch
     - alive cat <-> enabled branch
 
-### Challenge 3: Entangled Nondeterminism
+### Challenge 3: "Entangled" Nondeterminism
 - Example code: cross-process interference
 ```
 active proctype p1() {
