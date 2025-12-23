@@ -123,7 +123,7 @@ active proctype q() {
 active proctype p() {
   if
     :: A
-    :: do :: B :: C 
+    :: do :: B :: C od
   if ; D
 }
 ```
