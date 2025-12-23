@@ -136,11 +136,14 @@ active proctype p() {
   if ; D
 }
 ```
+- syntactically `if` comes before `do`
+- semantically `do` comes before `if` (`if`'s enabledness depends on `do`'s enabledness)
 - syntax tells you to "unwrap" step-by-step (structured)
 - semantics tells you that there are three outgoing transitions (flat)
 - How?
     - try recursively and rollback in case of failure? (demonic)
     - choose anything and invalidate the whole execution in case of failure? (anglic)
+- **Syntax-Semantics mismatch for nondeterminism**
 
 
 ### Challenge 3: Nondeterminism may Interfere across Processes
