@@ -160,12 +160,28 @@ active proctype p2() {
   if :: y = 1 :: c ? x fi 
 }
 ```
+- p1's enabledness depends on p2's enabledness and vice versa (circular dependency)
+    - enabledness condition cannot be expressed as a pure expression over global program state
+    - handshake enabledness should be checked by pattern matching for two partner processes as below:
+```
+<k> if (:: c ! v) OS:OptionSet fi ~> K </k>
+<k> if (:: c ? x) OS':OptionSet fi ~> K' </k>
+```
+- handshake operations may be nested at unbounded depth
+    - this corresponds to infinite instances of handshake rules for each nesting depth
+```
+<k> if (:: if (:: ... if (:: c ! v) OS_1:OptionSet fi) OS_2:OptionSet fi) OS_N:OptionSet fi ~> K </k>
+<k> if (:: if (:: ... if (:: c ? x) OS_1:OptionSet fi) OS_2:OptionSet fi) OS_M:OptionSet fi ~> K </k>
+```
 - Two sources of nondeterminism:
     - branching nondeterminism: `if` in each process
     - interleaving nondeterminism: interleaving between processes
 
 ## Semantic Patterns
+### Approach
+
 ### Fire-and-Release
+
 ### Load-and-Fire
 
 ### Forked Continuations
