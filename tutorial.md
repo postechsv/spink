@@ -136,15 +136,16 @@ active proctype p() {
   if ; D
 }
 ```
-- A naive "sturctural" semantics (i.e., branch step-by-step) won't work:
+- A naive "structural" semantics (i.e., branch step-by-step) won't work:
     - **syntactically**, `if` comes before `do`
     - **semantically**, `do` comes before `if` (`if`'s enabledness depends on `do`'s enabledness) 
 - How?
     - try recursively and rollback in case of failure? (demonic)
-    - choose anything and invalidate the whole execution in case of failure? (anglic)
+    - choose anything and invalidate the whole execution in case of failure? (angelic)
 - **Syntax-Semantics mismatch for nondeterminism**
 - Analogy: Given multiple Schrödinger's boxes, choose all and only those boxes with alive cats
     - box <-> nested syntax
+    - opening a box <-> commiting to a branch
     - alive cat <-> enabled branch
 
 ### Challenge 3: Nondeterminism may Interfere across Processes
