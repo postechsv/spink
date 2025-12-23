@@ -117,8 +117,7 @@ active proctype q() {
 
 
 ### Challenge 2: Schrödinger's Guards
-- guards has no imperative interpretation
-- guards are **declarative** in nature
+- Example code: nested nondeterminism
 ```
 active proctype p() {
   if
@@ -127,6 +126,9 @@ active proctype p() {
   if ; D
 }
 ```
+- guards has no imperative interpretation
+- guards are **declarative** in nature
+
 
 ### Challenge 3: Nondeterminism may Interfere across Processes
 - Inner concurrency vs Outer concurrency
