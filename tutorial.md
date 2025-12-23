@@ -119,15 +119,28 @@ active proctype q() {
 ### Challenge 2: Schrödinger's Guards
 - Example code: nested nondeterminism
 ```
+// usual style
+active proctype p() {
+  if
+    :: x == 1 -> ...
+    :: x > 42 -> ...
+  fi
+}
+```
+```
+// nested style
 active proctype p() {
   if
     :: A
-    :: do :: B :: C od
+    :: do :: B :: C od // the whole do loop is a guard!
   if ; D
 }
 ```
-- guards has no imperative interpretation
-- guards are **declarative** in nature
+- syntax tells you to "unwrap" step-by-step (structured)
+- semantics tells you that there are three outgoing transitions (flat)
+- How?
+    - try recursively and rollback in case of failure? (demonic)
+    - choose anything and invalidate the whole execution in case of failure? (anglic)
 
 
 ### Challenge 3: Nondeterminism may Interfere across Processes
