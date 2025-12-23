@@ -136,7 +136,7 @@ active proctype p() {
   if ; D
 }
 ```
-- A naive "structural" semantics (i.e., branch step-by-step) won't work:
+- A naive "structural" rules (i.e., branch step-by-step) won't work:
     - **syntactically**, `if` comes before `do`
     - **semantically**, `do` comes before `if` (`if`'s enabledness depends on `do`'s enabledness) 
 - How?
@@ -162,7 +162,7 @@ active proctype p2() {
 ```
 - p1's enabledness depends on p2's enabledness and vice versa (circular dependency)
     - enabledness condition cannot be expressed as a pure expression over global program state
-    - handshake enabledness should be checked by pattern matching for two partner processes as below:
+    - standard way to check handshake enabledness: pattern matching for two partner processes
 ```
 <k> if (:: c ! v) OS:OptionSet fi ~> K </k>
 <k> if (:: c ? x) OS':OptionSet fi ~> K' </k>
@@ -170,12 +170,11 @@ active proctype p2() {
 - handshake operations may be nested at unbounded depth
     - this corresponds to infinite instances of handshake rules for each nesting depth
 ```
-<k> if (:: if (:: ... if (:: c ! v) OS_1:OptionSet fi) OS_2:OptionSet fi) OS_N:OptionSet fi ~> K </k>
-<k> if (:: if (:: ... if (:: c ? x) OS_1:OptionSet fi) OS_2:OptionSet fi) OS_M:OptionSet fi ~> K </k>
+<k> if (:: if (:: ... if (:: c ! v) OS_1_1 fi) OS_1_2 fi) OS_1_N fi ~> K </k>
+<k> if (:: if (:: ... if (:: c ? x) OS_2_1 fi) OS_2_2 fi) OS_2_M fi ~> K </k>
 ```
-- Two sources of nondeterminism:
-    - branching nondeterminism: `if` in each process
-    - interleaving nondeterminism: interleaving between processes
+- challenge: ****
+
 
 ## Semantic Patterns
 ### Approach
@@ -183,6 +182,10 @@ active proctype p2() {
 ### Fire-and-Release
 
 ### Load-and-Fire
+- a transformation that turns structured control-flow syntax into flat semantic multisets
+- Two sources of nondeterminism:
+    - branching nondeterminism: `if` in each process
+    - interleaving nondeterminism: interleaving between processes
 
 ### Forked Continuations
 
