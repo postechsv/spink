@@ -90,7 +90,7 @@ end:
     - interference : synchronization under **concurrency** and **nondeterminism**
 - Goal: A K semantics that resolves these challenges in an **uniform** and **modular** way (non-ad-hoc way).
 
-### Challenge 1: Basic Statements are not so Basic!
+### Challenge 1: Not-So-Basic Basic Statements
 - Example: c ? x, y
     - basic statement -> ATOMIC operation
     - behavior: check, dequeue, assign x, assign y
@@ -148,8 +148,8 @@ active proctype p() {
     - opening a box <-> commiting to a branch
     - alive cat <-> enabled branch
 
-### Challenge 3: Nondeterminism may Interfere across Processes
-- Inner concurrency vs Outer concurrency
+### Challenge 3: Entangled Nondeterminism
+- Example code: cross-process interference
 ```
 active proctype p1() {
   if :: c ! 1 :: y = 1 fi 
@@ -158,12 +158,17 @@ active proctype p2() {
   if :: y = 1 :: c ? x fi 
 }
 ```
+- Two sources of nondeterminism:
+    - branching nondeterminism: `if` in each process
+    - interleaving nondeterminism: interleaving between processes
 
 ## Semantic Patterns
 ### Fire-and-Release
 ### Load-and-Fire
 
 ### Forked Continuations
+
+### Modularity
 
 ## Part V: Concrete Examples
 - Sec 4,5 main
