@@ -91,29 +91,29 @@ end:
 - Goal: A K semantics that resolves these challenges in an **uniform** and **modular** way (non-ad-hoc way).
 
 ### Challenge 1: "Not-So-Basic" Basic Statements
-- Example: c ? x, y
-    - basic statement -> ATOMIC operation
-    - behavior: check, dequeue, assign x, assign y
+- Example: receive from a buffered channel
+    - a PROMELA basic statement (an **atomic** operation)
+    - behavior: check, dequeue, assign x, assign y (not so basic :()
 ```
-active proctype p() {
+active proctype p1() {
     ...
     c ? x, y; // <- currently executing
     ...
 }
-active proctype q() {
+active proctype p2() {
     ...
     c ? x, y; // <- currently executing
     ...
 }
 ```
-- How to define K rules for this?
-    - A single K rule would work..
-    - but harms readability and modularity (c.f., assignment)
-- What if..
-    - separate K rules for check, dequeue, assign
-    - p: check, q: check, p: dequeue
-    - q: check becomes invalid!
 - **Granularity mismatch between PROMELA statements and K rules!**
+    - PROMELA : 1 intended step
+    - K : 4 natural steps
+- Designing a single giant K rule for c ? x, y would do, but..
+    - harms modularity (e.g., duplicate functionality with assignment rules)
+- concurrency matters
+    - an interleaving : check (p1) -> check (p2) -> dequeue (p1) -> ...
+    - check (p2) becomes invalid!
 
 
 ### Challenge 2: "Schrödinger's" Guards
@@ -182,7 +182,7 @@ active proctype p2() {
 ### Fire-and-Release
 
 ### Load-and-Fire
-- a transformation that turns structured control-flow syntax into flat semantic multisets
+- a set of structural rules that transforms a **syntactically nested control-flow** into a **flat semantic multiset**
 - Two sources of nondeterminism:
     - branching nondeterminism: `if` in each process
     - interleaving nondeterminism: interleaving between processes
