@@ -116,7 +116,7 @@ active proctype q() {
 - **Granularity mismatch between PROMELA statements and K rules!**
 
 
-### Challenge 2: Nested Guards
+### Challenge 2: Schrödinger's Guards
 - guards has no imperative interpretation
 - guards are **declarative** in nature
 ```
