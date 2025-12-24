@@ -2,6 +2,14 @@
 
 ## Part I: Introduction
 
+### The PROMELA/SPIN tandem
+- Widely used for modeling & verifying concurrent/distributed systems.
+    - PROMELA is the input modeling language
+    - SPIN is the model checker
+- Success stories:
+    - ACM Software System Award 2001
+    - e.g., cryptographic protocols, LINUX FUTEX, NASA's Flight Guidance System
+
 ### PROMELA
 - PROMELA is the input language for SPIN model checker.
     - ACM Software System Award 2001 (cite)
@@ -86,7 +94,7 @@ end:
     - each process's behavior is given by a sequence of statements
 - Two levels of Statements
     - basic statements: defines atomic actions
-        - e.g.,assignment, channel send/receive, etc.
+        - e.g., assignment, channel send/receive, etc.
     - control statements: determines which action comes after another (control-flow)
         - e.g., if, do, etc.
 - Enabledness (= Executability)
