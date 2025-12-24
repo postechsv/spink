@@ -22,6 +22,13 @@
     - no direct support for other verification techniques (e.g., deductive verification)
     - no "official" formal semantics of PROMELA
 
+### Breaking the tandem
+- We propose to give independence to PROMELA from SPIN
+- by :
+    - viewing PROMELA models as "programs" in their own right, rather than as mere descriptions of automata to be read by SPIN
+    - defining a "machine-readable" formal semantics of PROMELA that is executable, modular, and explainable
+
+
 ### PROMELA
 - PROMELA is the input language for SPIN model checker.
     - ACM Software System Award 2001 (cite)
