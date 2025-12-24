@@ -27,7 +27,10 @@
 - by :
     - viewing PROMELA models as "programs" in their own right, rather than as mere descriptions of automata to be read by SPIN
     - defining a "machine-readable" formal semantics of PROMELA that is executable, modular, and explainable
-
+- so that :
+    - various analysis techniques are directly applicable (by executability)
+    - adding new language features is tractable (by modularity)
+    - semantics plays as a readable document (by explainability)
 
 ### PROMELA
 - PROMELA is the input language for SPIN model checker.
