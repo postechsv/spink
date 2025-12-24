@@ -10,6 +10,18 @@
     - ACM Software System Award 2001
     - e.g., cryptographic protocols, LINUX FUTEX, NASA's Flight Guidance System
 
+### The SPIN model checker
+- An explicit model checker
+- Pros
+    - fully automatic
+    - efficient implementation (e.g., partial-order reduction, bitstate hashing)
+    - low learning curve
+        - PROMELA has an intuitive syntax similar to C
+- Cons
+    - cannot verify properties for infinite systems
+    - no direct support for other verification techniques (e.g., deductive verification)
+    - no "official" formal semantics of PROMELA
+
 ### PROMELA
 - PROMELA is the input language for SPIN model checker.
     - ACM Software System Award 2001 (cite)
