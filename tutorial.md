@@ -32,63 +32,21 @@
     - adding new language features is tractable (by modularity)
     - semantics plays as a readable document (by explainability)
 
-### Our work
+### Deductive Verification for PROMELA
 - Status quo
     - reimplementations of PROMELA for extended analysis (e.g., SpinJa, SpinX)
         - no formal semantics provided
     - denotational semantics & structural operational semantics (SOS)
         - not machine-readable (not executable)
     - (most work) formal semantics by defining translation from PROMELA to LTS
-        - PROMELA plays no role at analysis stage
+        - no support for deductive verification (PROMELA is "parsed away")
 - Our goal
-    - an "executable" semantics of PROMELA which eanbles "code-level" analysis
+    - an "executable" semantics of PROMELA for "code-level" deductive analysis
 - Our approach : the K Framework
     - you define semantics in K, you get various tools "for free"
     - e.g., parsers, interpreters, model checkers, (and most notably) deductive verifiers
 
-### PROMELA
-- PROMELA is the input language for SPIN model checker.
-    - ACM Software System Award 2001 (cite)
-- PROMELA & SPIN tandem is widely used for specifying & verifying concurrent systems.
-    - e.g., cryptographic protocols (cite), LINUX FUTEX (cite), Flight Guidence Systems (cite)
-- PROMELA has a imperative-style syntax, similar to C:
-    - e.g., variable assignment, goto statements, control structures (if, do, etc.)
-```
-    int x;
-    x = 5;
-    if
-    :: x > 0 -> x = x - 1;
-    :: else -> goto end;
-    fi;
-end:
-```
-- However PROMELA is a high-level **modeling language**, unlike C.
-    - It abstracts away low-level implementation details.
-    - e.g., atomic, message-passing
-```
-    atomic {
-        x = x + 1;
-        y = y + 1;
-    }
-```
 
-### Limitation of SPIN
-- The SPIN model checker takes PROMELA code as input and performs **automatic** verification.
-- SPIN supports highly efficient verification techniques:
-    - Partial-order reduction
-    - Bitstate hashing
-- However, SPIN is based on **explicit state exploration**
-    - It cannot verify properties that require reasoning about infinite state spaces or infinite data.
-    - Other verification techniques (e.g., deductive verification) are not directly supported.
-
-### Deductive Verification of PROMELA
-- Deductive verification is a complementary approach to model checking.
-    - It uses logical reasoning to prove properties about programs.
-- Deductive verification can handle infinite state spaces and data.
-- However, applying deductive verification to PROMELA is challenging:
-    - PROMELA's semantics are complex and not formally defined in a way that supports deductive reasoning.
-    - Existing tools for deductive verification do not support PROMELA directly.
-- To address this, we propose using the K Framework to define formal semantics for PROMELA.
 
 ## Part II: K Framework
 ### K Framework
