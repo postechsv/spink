@@ -32,6 +32,15 @@
     - adding new language features is tractable (by modularity)
     - semantics plays as a readable document (by explainability)
 
+### Our work
+- Status quo
+    - reimplementations of PROMELA for extended analysis (e.g., SpinJa, SpinX)
+        - no formal semantics provided
+    - denotational semantics & structural operational semantics (SOS)
+        - not machine-readable (not executable)
+    - (most work) formal semantics by defining translation from PROMELA to LTS
+        - PROMELA plays no role at analysis stage
+
 ### PROMELA
 - PROMELA is the input language for SPIN model checker.
     - ACM Software System Award 2001 (cite)
