@@ -40,6 +40,11 @@
         - not machine-readable (not executable)
     - (most work) formal semantics by defining translation from PROMELA to LTS
         - PROMELA plays no role at analysis stage
+- Our goal
+    - an "executable" semantics of PROMELA which eanbles "code-level" analysis
+- Our approach : the K Framework
+    - you define semantics in K, you get various tools "for free"
+    - e.g., parsers, interpreters, model checkers, (and most notably) deductive verifiers
 
 ### PROMELA
 - PROMELA is the input language for SPIN model checker.
